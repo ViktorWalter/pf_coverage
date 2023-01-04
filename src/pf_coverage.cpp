@@ -98,8 +98,12 @@ public:
         this->get_parameter("ROBOTS_NUM", ROBOTS_NUM);
 
         // ID of the controlled robot
-        this->declare_parameter<int>("ROBOT_ID", 2);
+        this->declare_parameter<int>("ROBOT_ID", 0);
         this->get_parameter("ROBOT_ID", ROBOT_ID);
+
+        // Operating mode: 0 = coverage, 1 = milling
+        this->declare_parameter<int>("MODE", 0);
+        this->get_parameter("MODE", MODE);
 
         //Range di percezione singolo robot (= metà lato box locale)
         this->declare_parameter<double>("ROBOT_RANGE", 15.0);
@@ -130,6 +134,8 @@ public:
         this->declare_parameter<double>("GOAL_Y", 5.0);
         this->get_parameter("GOAL_Y", GOAL_Y);
 
+
+
         
 
     //--------------------------------------------------- Subscribers and Publishers ----------------------------------------------------
@@ -144,7 +150,14 @@ public:
     gmmSub_ = this->create_subscription<turtlebot3_msgs::msg::GMM>("/gaussian_mixture_model", 1, std::bind(&Controller::gmm_callback, this, _1));
     velPub_.push_back(this->create_publisher<geometry_msgs::msg::Twist>("/turtlebot" + std::to_string(ROBOT_ID) + "/cmd_vel", 1));
     // voronoiPub = this->create_publisher<geometry_msgs::msg::PolygonStamped>("/voronoi"+std::to_string(ID)+"_diagram", 1);
-    timer_ = this->create_wall_timer(500ms, std::bind(&Controller::multipf_coverage, this));
+    if (MODE == 0)
+    {
+        timer_ = this->create_wall_timer(500ms, std::bind(&Controller::pf_coverage, this));
+    } else if (MODE == 1)
+    {
+        timer_ = this->create_wall_timer(500ms, std::bind(&Controller::pf_milling, this));
+    }
+    
     //rclcpp::on_shutdown(std::bind(&Controller::stop,this));
 
     //----------------------------------------------------------- init Variables ---------------------------------------------------------
@@ -156,7 +169,7 @@ public:
     realpose_y = Eigen::VectorXd::Zero(ROBOTS_NUM);
     realpose_theta = Eigen::VectorXd::Zero(ROBOTS_NUM);
     GAUSSIAN_MEAN_PT.resize(2);
-    GAUSSIAN_MEAN_PT << -10.0, 10.0;                       // Gaussian mean point
+    GAUSSIAN_MEAN_PT << 10.0, 10.0;                       // Gaussian mean point
     time(&this->timer_init_count);
     time(&this->timer_final_count);
 
@@ -211,7 +224,7 @@ public:
     Eigen::VectorXd Matrix_row_sum(Eigen::MatrixXd x);
     Eigen::MatrixXd Diag_Matrix(Eigen::VectorXd V);
     void pf_coverage();
-    void multipf_coverage();
+    void pf_milling();
     void coverage();
     bool insideFOV(Eigen::VectorXd q, Eigen::VectorXd q_obs, double fov, double r_sens);
     Eigen::VectorXd predictVelocity(Eigen::VectorXd q, Eigen::VectorXd mean_pt);
@@ -221,7 +234,7 @@ public:
     Eigen::VectorXd initCovariance = 0.001*Eigen::VectorXd::Ones(3);
     int PARTICLES_NUM = 100;
     const std::size_t num_clusters = 1;
-    double SAFETY_DIST = 2.0;
+    double SAFETY_DIST = 1.0;
     // ParticleFilter *global_filter = new ParticleFilter(3*PARTICLES_NUM, start, initCovariance);
 
     
@@ -234,6 +247,7 @@ private:
     double ROBOT_RANGE;
     int ROBOT_ID;
     double ROBOT_FOV;
+    int MODE;
     double GOAL_X, GOAL_Y;
     // int PARTICLES_NUM;
     std::vector<bool> got_gmm;
@@ -369,154 +383,374 @@ Eigen::VectorXd Controller::getWheelVelocity(Eigen::VectorXd u, double alpha)
 }
 
 
-// void Controller::pf_coverage()
-// {
-//     std::cout << "Starting" << std::endl;
-//     auto timerstart = this->get_clock()->now().nanoseconds();
-//     Eigen::VectorXd u(2);
-//     u << 1.0, 1.0;
-//     Eigen::VectorXd processCovariance = 0.5*Eigen::VectorXd::Ones(3);
+void Controller::pf_coverage()
+{
+    std::cout << "SONO NEL MAIN LOOP" << std::endl;
+    auto timerstart = this->get_clock()->now().nanoseconds();
+    Eigen::VectorXd u(2);
+    u << 0.5, 0.5;
+    Eigen::VectorXd processCovariance = 0.1*Eigen::VectorXd::Ones(3);
+    Eigen::VectorXd robot(3);                           // controlled robot's global position
+    robot << this->pose_x(ROBOT_ID), this->pose_y(ROBOT_ID), this->pose_theta(ROBOT_ID);
+    std::vector<Eigen::VectorXd> total_samples;                                       // samples from the filter
+    std::vector<Eigen::VectorXd> mean_points;
+    std::vector<double> distances;
 
-//     for (int j = 0; j < ROBOTS_NUM; j++)
-//     {
-//         double c = j;                       // robot's id variable
-//         if (j != ROBOT_ID)
-//         {
-//             // Check if the robot is detected
-//             if (this->pose_x(j) != 100.0 && this->pose_y(j) != 100.0)
-//             {
-//                 std::cout << "Robot " << j << " detected in " << this->pose_x(j) << ", " << this->pose_y(j) << std::endl;
-//                 // Case 1: robot detected: update the filter
-//                 Eigen::VectorXd obs(3);
-//                 obs(0) = this->pose_x(j);
-//                 obs(1) = this->pose_y(j);
-//                 obs(2) = this->pose_theta(j);
-//                 if (j > ROBOT_ID)
-//                 {filters[j-1]->matchObservation(obs);}
-//                 else
-//                 {filters[j]->matchObservation(obs);}
+    for (int j = 0; j < ROBOTS_NUM; j++)
+    {
+        double c = j;                       // robot's id variable
+        if (j > ROBOT_ID) {c = j-1;}
+        if (j != ROBOT_ID)
+        {
+            // Check if the robot is detected
+            if (this->pose_x(j) != 100.0 && this->pose_y(j) != 100.0)
+            {
+                std::cout << "Robot " << j << " detected in " << this->pose_x(j) << ", " << this->pose_y(j) << std::endl;
+                if (this->pose_x(j) == 0.0 && this->pose_y(j) == 0.0)
+                {
+                    std::cout << "Error in robot " << j << " initialization. Skipping..." << std::endl;
+                    return;
+                }
+                // Case 1: robot detected: update the filter
+                filters[c]->matchObservation(p_j.col(j));
+                justLost[c] = true;
+                this->got_gmm[c] = false;
+                mean_points.push_back(p_j.col(j));
                 
-//             } else
-//             {
-//                 // Case 2: robot not detected - particle filter prediction
-//                 std::cout << "Robot " << j << " not detected" << std::endl;
-//                 if (j > ROBOT_ID) { c = j-1; }                         
-//                 filters[c]->setProcessCovariance(processCovariance);
-//                 filters[c]->predict(u,dt);
-//                 // std::cout << "Prediction completed" << std::endl;
+            } else
+            {
+                if (justLost[c])
+                {
+                    // Case 2: robot not detected - particle filter prediction
+                    std::cout << "Robot " << j << " not detected" << std::endl;
+                    // if (j > ROBOT_ID) { c = j-1; } 
+                    // Estimate velocity of the lost robot for coverage
+                    Eigen::VectorXd u_ax(2);
+                    Eigen::VectorXd q_est = filters[c]->getMean();
+                    mean_points.push_back(q_est);
+                    std::cout << "Estimated state: " << q_est.transpose() << std::endl;
+                    u_ax = predictVelocity(q_est, robot);                        // get linear velocity [vx, vy] moving towards me
+                    std::cout << "Linear velocity: " << u_ax.transpose() << std::endl;
+                    Eigen::VectorXd u_est(2);
+                    u_est = getWheelVelocity(u_ax, q_est(2));                               // get wheel velocity [v_l, v_r] to reach the mean point
+                    std::cout << "wheels velocity: " << u_est.transpose() << std::endl;
+                    filters[c]->setProcessCovariance(processCovariance);
+                    filters[c]->predict(u_est,dt);
+                    std::cout << "Prediction completed" << std::endl;
 
-//                 // Get particles in required format
-//                 Eigen::MatrixXd particles = filters[c]->getParticles();
-//                 std::vector<Eigen::VectorXd> samples;
-//                 for (int i=0; i<particles.cols(); i++)
-//                 {
-//                     Eigen::VectorXd sample = particles.col(i);
-//                     samples.push_back(sample);
-//                 }
-//                 // std::cout << "Particles converted to required format" << std::endl;
+                    // Get particles in required format
+                    Eigen::MatrixXd particles = filters[c]->getParticles();
+                    std::vector<Eigen::VectorXd> samples;
+                    for (int i=0; i<particles.cols(); i++)
+                    {
+                        Eigen::VectorXd sample = particles.col(i);
+                        if (!insideFOV(robot, sample, ROBOT_FOV, ROBOT_RANGE))
+                        {
+                            samples.push_back(sample);
+                        }
+                        // samples.push_back(sample);
+                    }
+                    std::cout << "Particles converted to required format" << std::endl;
+
+                    // Generate new samples to fill the filter 
+                    if (this->got_gmm[c])
+                    {   
+                        // std::cout << "GMM already available. Generating needed particles: " << (PARTICLES_NUM - samples.size()) << std::endl; 
+                        std::vector<Eigen::VectorXd> samples_gmm = mix_models[c]->drawSamples(PARTICLES_NUM - samples.size());
+                        // std::cout << "Particles generated from GMM" << std::endl;
+                        for (int k = 0; k < samples_gmm.size(); k++)
+                        {
+                            samples.push_back(samples_gmm[k]);
+                        }
+
+                    } else
+                    {
+                        std::cout << "GMM not available. Generating needed particles: " << (PARTICLES_NUM - samples.size()) << std::endl;
+                        Eigen::VectorXd mean = filters[c]->getState();
+                        double mean_x = mean(0);
+                        double mean_y = mean(1);
+                        double mean_theta = mean(2);
+                        std::default_random_engine gen;
+                        std::normal_distribution<double> dx(mean_x, 0.5);
+                        std::normal_distribution<double> dy(mean_y, 0.5);
+                        std::normal_distribution<double> dtheta(mean_theta, 0.5);
+                        
+                        for (int k = samples.size(); k < PARTICLES_NUM; k++)
+                        {
+                            Eigen::VectorXd sample(3);
+                            sample << dx(gen), dy(gen), dtheta(gen);
+                            samples.push_back(sample);
+                        }
+                        // std::cout << "Particles generated from normal distribution" << std::endl;
+                    }
+                    
+
+                    filters[c]->setParticles(samples);
+                    // std::cout << "Particles set" << std::endl;
+
+                    gauss::TrainSet samples_set(samples);
+                    std::cout << "Samples set defined, size: " << samples.size() <<". Applying EM ...\n";
+                    std::vector<gauss::gmm::Cluster> clusters = gauss::gmm::ExpectationMaximization(samples_set, num_clusters);
+                    std::cout << "EM applied\n";
+
+                    // Create GMM from clusters
+                    std::cout << "Creating GMM ...\n";
+                    gauss::gmm::GaussianMixtureModel *model = new gauss::gmm::GaussianMixtureModel(clusters);
+                    std::cout << "GMM created\n";
+                    // *this->gmm_ = gmm;
+                    this->got_gmm[c] = true;
+                    mix_models[c] = model;
+
+                    Eigen::MatrixXd covm = mix_models[c]->getClusters()[0].distribution->getCovariance();
+                    // Remove samples inside FOV
+                    // Eigen::VectorXd robot = Eigen::VectorXd::Zero(3);                           // controlled robot's position (always in 0,0,0 because in local coordinates)
+                    // std::vector<Eigen::VectorXd> samples_filtered;
+                    // std::cout << "Removing particles inside FOV ...\n";
+                    // for (int i=0; i<samples.size(); i++)
+                    // {
+                    //     if (!insideFOV(robot, samples[i], ROBOT_FOV, ROBOT_RANGE))
+                    //     {
+                    //         total_samples.push_back(samples[i]);
+                    //     }
+                    // }
+                    total_samples.insert(total_samples.end(), samples.begin(), samples.end());
+                    std::cout << "Particles inside FOV removed. Total number of particles: " << total_samples.size() << "\n";
+                    // justLost[c] = false;
+                }
+            }
+        }
+    }
+
+    // Send velocity to the robot
+    geometry_msgs::msg::Twist vel;
+
+    std::cout << "Starting Voronoi calculation... \n";
+    // ------------------------------- Voronoi -------------------------------
+    // Get detected or estimated position of neighbors in local coordinates
+    Box<double> AreaBox{AREA_LEFT, AREA_BOTTOM, AREA_SIZE_x + AREA_LEFT, AREA_SIZE_y + AREA_BOTTOM};
+    Box<double> RangeBox{-ROBOT_RANGE, -ROBOT_RANGE, ROBOT_RANGE, ROBOT_RANGE};
+    std::vector<double> VARs = {2.0};
+    std::vector<Vector2<double>> MEANs = {{GAUSSIAN_MEAN_PT(0), GAUSSIAN_MEAN_PT(1)}};
+    double vel_x=0, vel_y=0;
+
+    Vector2<double> p = {this->pose_x(ROBOT_ID), this->pose_y(ROBOT_ID)};
+    std::vector<Vector2<double>> local_points;
+    for (int i = 0; i < mean_points.size(); i++)
+    {
+        Vector2<double> p_local = {mean_points[i](0) - p.x, mean_points[i](1) - p.y};
+        local_points.push_back(p_local);
+    }
+
+    std::cout << "Generating decentralized diagram.\n";
+    auto diagram = generateDecentralizedDiagram(local_points, RangeBox, p, ROBOT_RANGE, AreaBox);
+    std::cout << "Diagram generated. Calculating centroid.\n";
+    Vector2<double> centroid = computePolygonCentroid(diagram, MEANs, VARs);
+    std::cout << "Centroid: " << centroid.x << ", " << centroid.y << "\n";
+
+    //---------------------------------------------------------------------------------------
+    // from centroids compute velocity vectors according to Lloyd law
+    //---------------------------------------------------------------------------------------
+
+    if (centroid.getNorm() > CONVERGENCE_TOLERANCE)
+    {
+        vel_x = 0.8*(centroid.x);
+        vel_y = 0.8*(centroid.y);
+    } else {
+        vel_x = 0;
+        vel_y = 0;
+    }
+
+    std::cout << "Velocity towards centroid : " << vel_x << ", " << vel_y << "\n";
+
+    //-------------------------------------------------------------------------------------------------------
+    //Compute velocities commands for the robot: differential drive control, for UAVs this is not necessary
+    //-------------------------------------------------------------------------------------------------------
+    vel = this->Diff_drive_compute_vel(vel_x, vel_y, this->pose_theta[ROBOT_ID]);
+
+    //-------------------------------------------------------------------------------------------------------
 
 
-//                 // Remove samples inside FOV
-//                 Eigen::VectorXd robot = Eigen::VectorXd::Zero(3);                           // controlled robot's position (always in 0,0,0 because in local coordinates)
-//                 std::vector<Eigen::VectorXd> samples_filtered;
-//                 // std::cout << "Removing particles inside FOV ...\n";
-//                 for (int i=0; i<samples.size(); i++)
-//                 {
-//                     if (!insideFOV(robot, samples[i], ROBOT_FOV, ROBOT_RANGE))
-//                     {
-//                         samples_filtered.push_back(samples[i]);
-//                     }
-//                 }
-//                 // std::cout << "Particles inside FOV removed. Number of particles left: " << samples_filtered.size() << "\n";
-                
+
+    if ((GRAPHICS_ON) && (this->app_gui->isOpen()))
+    {
+        this->app_gui->clear();
+        this->app_gui->drawGlobalReference(sf::Color(255,255,0), sf::Color(255,255,255));
+        this->app_gui->drawFOV(robot, ROBOT_FOV, ROBOT_RANGE);
+        this->app_gui->drawPoint(GAUSSIAN_MEAN_PT, sf::Color(255,128,0));
+        // Vector2<double> goal = {GOAL_X, GOAL_Y};
+        // this->app_gui->drawPoint(goal, sf::Color(255,128,0));
+        for (int i = 0; i < ROBOTS_NUM; i++)
+        {
+            auto color = sf::Color(0,255,0);                        // default color for other robots: green
+            if (i == ROBOT_ID) {color = sf::Color(255,0,0);}        // controlled robot color: red
+            Vector2<double> n;
+            n.x = this->realpose_x(i);
+            n.y = this->realpose_y(i);
+            this->app_gui->drawPoint(n, color);
+            
+        }
+
+        // this->app_gui->drawPoint(me);
+        for (int j = 0; j < ROBOTS_NUM; j++)
+        {
+            if (j > ROBOT_ID)
+            {
+                this->app_gui->drawParticles(filters[j-1]->getParticles());
+            }
+            else if (j < ROBOT_ID)
+            {
+                this->app_gui->drawParticles(filters[j]->getParticles());
+            }
+        }
+
+        // Draw Voronoi diagram (centralized)
+        std::vector<Vector2<double>> mean_points_vec2;
+        for (int j = 0; j < mean_points.size(); j++)
+        {
+            Vector2<double> mp = {mean_points[j](0), mean_points[j](1)};
+            mean_points_vec2.push_back(mp);
+        }
+        auto diagram_centr = generateCentralizedDiagram(mean_points_vec2, AreaBox);
+        Vector2<double> centroid_global = {centroid.x + p.x, centroid.y + p.y};
+        this->app_gui->drawDiagram(diagram_centr);
+        this->app_gui->drawPoint(centroid_global, sf::Color(0,255,255));
 
 
-//                 // Apply Expectation-Maximization to get clusters fitting given samples
-//                 const std::size_t num_clusters = 2;
-//                 // std::cout << "Samples set definition ...\n";
-//                 gauss::TrainSet samples_set(samples_filtered);
-//                 // std::cout << "Samples set defined. Applying EM ...\n";
-//                 std::vector<gauss::gmm::Cluster> clusters = gauss::gmm::ExpectationMaximization(samples_set, num_clusters);
-//                 // std::cout << "EM applied\n";
+        for (int i = 0; i < mean_points.size(); i++)
+        {
+            this->app_gui->drawPoint(mean_points[i], sf::Color(0,0,255));
 
-//                 // Create GMM from clusters
-//                 // std::cout << "Creating GMM ...\n";
-//                 gauss::gmm::GaussianMixtureModel gmm_(clusters);
-//                 // std::cout << "GMM created\n";
-//                 // DEBUG
-//                 // std::cout << "GMM initialized\n";
-//                 // for (int i=0; i<gmm_.getClusters().size(); i++)
-//                 // {
-//                 //     std::cout << "Cluster " << i << ": weight = " << gmm_.getClusters()[i].weight << std::endl;
-//                 //     std::cout << "Mean: " << gmm_.getClusters()[i].distribution->getMean().transpose() << std::endl;
-//                 //     std::cout << "Covariance matrix: \n" << gmm_.getClusters()[i].distribution->getCovariance().transpose() << std::endl;
-//                 // }
+            if (this->got_gmm[i])
+            {
+                Eigen::MatrixXd cov_matrix = mix_models[i]->getClusters()[0].distribution->getCovariance();
+                if(!isinf(cov_matrix(0,0)))
+                {
+                    Eigen::EigenSolver<Eigen::MatrixXd> es(cov_matrix.block<2,2>(0,0));
+                    Eigen::VectorXd eigenvalues  = es.eigenvalues().real();
+                    // std::cout << "Eigenvalues: \n" << eigenvalues.transpose() << "\n";
+                    Eigen::MatrixXd eigenvectors = es.eigenvectors().real();
+                    // std::cout << "Eigenvectors: \n" << eigenvectors.transpose() << "\n";
+                    
+                    // s = 4.605 for 90% confidence interval
+                    // s = 5.991 for 95% confidence interval
+                    // s = 9.210 for 99% confidence interval
+                    double s = 5.991;
+                    double a = sqrt(s*eigenvalues(0));            // major axis
+                    double b = sqrt(s*eigenvalues(1));            // minor axis
 
-//                 // Set new particles
-//                 // std::cout << "Creating new set of particles...\n";
-//                 Eigen::MatrixXd new_particles;
-//                 new_particles.resize(3, PARTICLES_NUM);
-//                 for (int i=0; i<samples_filtered.size(); i++)
-//                 {
-//                     new_particles(0,i) = samples_filtered[i](0);
-//                     new_particles(1,i) = samples_filtered[i](1);
-//                     new_particles(2,i) = samples_filtered[i](2);
-//                 }
+                    // a could be smaller than b, so swap them
+                    if (a < b)
+                    {
+                        double temp = a;
+                        a = b;
+                        b = temp;
+                    }
 
-//                 // Generate particles needed to fill the set
-//                 std::vector<Eigen::VectorXd> samples_gmm = gmm_.drawSamples(PARTICLES_NUM - samples_filtered.size());
-//                 for (int i=0; i<samples_gmm.size(); i++)
-//                 {
-//                     new_particles(0,i+samples_filtered.size()) = samples_gmm[i](0);
-//                     new_particles(1,i+samples_filtered.size()) = samples_gmm[i](1);
-//                     new_particles(2,i+samples_filtered.size()) = samples_gmm[i](2);
-//                 }
-//                 // std::cout << "New Particles created\n";
+                    int m = 0;                  // higher eigenvalue index
+                    int l = 1;                  // lower eigenvalue index
+                    if (eigenvalues(1) > eigenvalues(0)) 
+                    {
+                        m = 1;
+                        l = 0;
+                    }
+                    
+                    double theta = atan2(eigenvectors(1,m), eigenvectors(0,m));             // angle of the major axis wrt positive x-asis (ccw rotation)
+                    if (theta < 0.0) {theta += M_PI;}                                    // angle in [0, 2pi
+                    this->app_gui->drawEllipse(mean_points[i], a, b, theta);
 
-//                 filters[c]->setParticles(new_particles);
-//                 // std::cout << "New Particles applied to filter\n";
-                
-//             }
-//         }
-//     }
+                    double slope = atan2(-mean_points[i](1) + this->pose_y(ROBOT_ID), -mean_points[i](0) + this->pose_x(ROBOT_ID));
+                    // slope += theta;
+                    // double slope = 0.0;
+                    // double x_n = mean_points[i](0) + a*cos(0.0);
+                    // double y_n = mean_points[i](1) + b*sin(0.0);
+                    double x_n = mean_points[i](0) + a * cos(slope - theta) * cos(theta) - b * sin(slope - theta) * sin(theta);
+                    double y_n = mean_points[i](1) + a * cos(slope - theta) * sin(theta) + b * sin(slope - theta) * cos(theta);
+                    // double x_n = mean_points[i](0) + eigenvectors(0,m) * a * cos(slope) + eigenvectors(0,l) * b * sin(slope);
+                    // double y_n = mean_points[i](1) + eigenvectors(1,m) * a * cos(slope) + eigenvectors(1,l) * b * sin(slope);
+                    Vector2<double> p_near = {x_n, y_n};
 
-//     if ((GRAPHICS_ON) && (this->app_gui->isOpen()))
-//     {
-//         Eigen::VectorXd me(2);
-//         me(0) = this->pose_x(ROBOT_ID);
-//         me(1) = this->pose_y(ROBOT_ID);
-//         this->app_gui->clear();
-//         this->app_gui->drawGlobalReference(sf::Color(255,255,0), sf::Color(255,255,255));
-//         this->app_gui->drawFOV(me, ROBOT_FOV, ROBOT_RANGE);
-//         // this->app_gui->drawPoint(me);
-//         for (int j = 0; j < ROBOTS_NUM; j++)
-//         {
-//             if (j > ROBOT_ID)
-//             {
-//                 this->app_gui->drawParticles(filters[j-1]->getParticles());
-//             }
-//             else if (j < ROBOT_ID)
-//             {
-//                 this->app_gui->drawParticles(filters[j]->getParticles());
-//             }
-//         }
-//         // this->app_gui->drawParticles(filters[j]->getParticles());
-//         this->app_gui->display();
-//     }
+                    // std::cout << "Robot position: " << this->pose_x(ROBOT_ID) << ", " << this->pose_y(ROBOT_ID) << "\n";
+                    // std::cout << "Neighbor estimate: " << mean_points[i](0) << ", " << mean_points[i](1) << "\n";
+                    // std::cout << "Ellipse orientation: " << theta << "\n";
+                    // std::cout << "Slope" << slope << "\n";
+                    // std::cout << "Eigenvalues: " << eigenvalues(m) << ", " << eigenvalues(l) << "\n";
 
-//     // Send velocity to the robot
-//     geometry_msgs::msg::Twist vel;
-//     vel.linear.x = this->vel_linear_x;
-//     vel.angular.z = this->vel_angular_z;
-//     this->velPub_[ROBOT_ID]->publish(vel);
+                    double dist = sqrt(pow(p_near.x - this->pose_x(ROBOT_ID), 2) + pow(p_near.y - this->pose_y(ROBOT_ID), 2));
+                    std::cout << "Distance: " << dist << "\n";
 
-//     auto end = this->get_clock()->now().nanoseconds();
-//     std::cout<<"Computation time cost: -----------------: "<<end - timerstart<<std::endl;
+                    // Check if robot is inside ellipse
+                    double d = sqrt(pow(mean_points[i](0) - this->pose_x(ROBOT_ID), 2) + pow(mean_points[i](1) - this->pose_y(ROBOT_ID), 2));
+                    if (d < a)
+                    {
+                        distances.push_back(0.5*SAFETY_DIST);
+                    } else
+                    {
+                        distances.push_back(dist);
+                    }
 
-// }
+                    this->app_gui->drawPoint(p_near, sf::Color(255,0,127));
+                }
+            }
+        }
+    
+        this->app_gui->display();
+    }
+
+    // Get mean point of predictions and rotate robot to face it
+    // double w = 0;
+    // if (mean_points.size() > 0)
+    // {
+    //     double xm = 0;
+    //     double ym = 0;
+
+    //     for (int i = 0; i < mean_points.size(); i++)
+    //     {
+    //         xm += mean_points[i](0);
+    //         ym += mean_points[i](1);
+    //     }
+
+    //     xm /= mean_points.size();
+    //     ym /= mean_points.size();
+
+    //     double theta_des = atan2((ym-this->realpose_y(ROBOT_ID)), (xm-this->realpose_x(ROBOT_ID)));
+    //     w  = 0.5*(theta_des - this->realpose_theta(ROBOT_ID));
+    // }
 
 
-void Controller::multipf_coverage()
+    
+
+    double omega = 0.0;
+    for (int i = 0; i < distances.size(); i++)
+    {
+        if (distances[i] < SAFETY_DIST)
+        {
+            std::cout << "Unsafe condition. Avoiding collision." << "\n";
+            
+            double theta_des = atan2((mean_points[i](1)-this->pose_y(ROBOT_ID)), (mean_points[i](0)-this->pose_x(ROBOT_ID)));
+            double w = -0.5*(theta_des - this->pose_theta(ROBOT_ID));
+            if (abs(w) > abs(omega)) {omega = w;}
+            vel.linear.x = 0.0;
+            vel.angular.z = 0.0;
+        } else
+        {
+            std::cout << "Safe condition. Moving to goal." << "\n";
+        }
+    }
+
+    // Change angular velocity only in unsafe condition
+    if (omega != 0.0)
+    {
+        vel.angular.z = 0.5;
+    }
+
+    this->velPub_[0]->publish(vel);
+
+    auto end = this->get_clock()->now().nanoseconds();
+    std::cout<<"Computation time cost: -----------------: "<<end - timerstart<<std::endl;
+}
+
+
+void Controller::pf_milling()
 {
     // std::cout << "Starting" << std::endl;
     auto timerstart = this->get_clock()->now().nanoseconds();
@@ -793,7 +1027,7 @@ void Controller::multipf_coverage()
     // vel.angular.z = this->vel_angular_z;
     double xg = GOAL_X - this->pose_x(ROBOT_ID);
     double yg = GOAL_Y - this->pose_y(ROBOT_ID);
-    if (xg * xg + yg * yg < 0.1)
+    if (xg * xg + yg * yg < CONVERGENCE_TOLERANCE)
     {
         vel.linear.x = 0.0;
         vel.angular.z = 0.0;
@@ -830,8 +1064,8 @@ void Controller::multipf_coverage()
 
     auto end = this->get_clock()->now().nanoseconds();
     std::cout<<"Computation time cost: -----------------: "<<end - timerstart<<std::endl;
-
 }
+
 void Controller::test_print()
 {
     std::cout<<"ENTERED"<<std::endl;

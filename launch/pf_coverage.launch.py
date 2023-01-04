@@ -25,6 +25,9 @@ def generate_launch_description():
     AREA_BOTTOM = -20.0
     ROBOT_RANGE = 15.0
 
+    # MODE: 0 = coverage, 1 = milling
+    MODE = 0
+
     ld = []
     # supervisor
     # n = Node( 
@@ -42,7 +45,7 @@ def generate_launch_description():
         n = Node(
             package='pf_coverage',
             node_executable='pf_coverage',
-            parameters=[{"ROBOTS_NUM": ROBOTS_NUM}, {"ROBOT_RANGE": ROBOT_RANGE}, {"AREA_SIZE_x": AREA_SIZE_x}, {"AREA_SIZE_y": AREA_SIZE_y}, {"AREA_LEFT": AREA_LEFT}, {"AREA_BOTTOM": AREA_BOTTOM}, {"ROBOT_ID": i},{"GOAL_X": xg[i]}, {"GOAL_Y":yg[i]}],
+            parameters=[{"ROBOTS_NUM": ROBOTS_NUM}, {"ROBOT_RANGE": ROBOT_RANGE}, {"AREA_SIZE_x": AREA_SIZE_x}, {"AREA_SIZE_y": AREA_SIZE_y}, {"AREA_LEFT": AREA_LEFT}, {"AREA_BOTTOM": AREA_BOTTOM}, {"ROBOT_ID": i}, {"MODE": MODE}, {"GOAL_X": xg[i]}, {"GOAL_Y":yg[i]}],
             output='screen')
 
         ld.append(n)
