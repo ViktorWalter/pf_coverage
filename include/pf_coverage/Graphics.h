@@ -522,14 +522,14 @@ public:
         Vector2<double> v2 = {p(0) + r_sens * cos(th - fov_rad/2), p(1) + r_sens * sin(th - fov_rad/2)};
 
         // Draw edges of the FOV
-        drawEdge_global(origin, v1, sf::Color::Red);
-        drawEdge_global(origin, v2, sf::Color::Red);
+        drawEdge_global(origin, v1, sf::Color::Green);
+        drawEdge_global(origin, v2, sf::Color::Green);
         // Draw arc of the FOV
         for (auto phi = -fov_rad/2; phi < fov_rad/2 - 0.1; phi += fov_rad/10)
         {
             Vector2<double> vs = {p(0) + r_sens * cos(th + phi), p(1) + r_sens * sin(th + phi)};
             Vector2<double> vf = {p(0) + r_sens * cos(th + phi + fov_rad/10), p(1) + r_sens * sin(th + phi + fov_rad/10)};
-            drawEdge_global(vs, vf, sf::Color::Red);
+            drawEdge_global(vs, vf, sf::Color::Green);
         }
 
     }

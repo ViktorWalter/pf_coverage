@@ -18,6 +18,7 @@
 
 import os
 import random
+import math
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -34,7 +35,7 @@ TURTLEBOT3_MODEL = os.environ['TURTLEBOT3_MODEL']
 def generate_launch_description():
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
     launch_file_dir = os.path.join(get_package_share_directory('gazebo_ros'), 'launch')
-    robots_NUM = 4
+    robots_NUM = 6
     launch_list = []
 
     gazebo = IncludeLaunchDescription(
@@ -44,20 +45,41 @@ def generate_launch_description():
 
     launch_list.append(gazebo)
 
+    vision = Node(
+            package='pf_coverage',
+            node_executable='vision_emulator',
+            parameters=[{"ROBOTS_NUM": robots_NUM}],
+            output='screen')
+    
+    launch_list.append(vision)
+
 
     # x_pos = [-2, -3, 2, 2]
     # y_pos = [-2, 4, 1, 2]
     # theta = [0.25 * 3.14, 0, 0, 0]
 
-    x_pos = [-5.0, 5.0, 5.0, -5.0]
-    y_pos = [-5.0, -5.0, 5.0, 5.0]
-    theta = 0.25 * 3.14
+    x_pos = [-4.0, 4.0, 4.0, -4.0, -6.0, 6.0]
+    y_pos = [-4.0, -4.0, 4.0, 4.0, 0.0, 0.0]
+    # theta = 0.25 * 3.14
+    theta = [0.25*3.14, 0.75*3.14, 1.25*3.14, 1.75*3.14, 0.0, -3.14]
+
+    # x_pos = []
+    # y_pos = []
+    # theta = []
+    # r = 5.0
+    # for i in range(robots_NUM):
+    #     th = random.uniform(-3.14, 3.14)
+    #     x = r * math.cos(th)
+    #     y = r * math.sin(th)
+    #     x_pos.append(x)
+    #     y_pos.append(y)
+    #     theta.append(-y/x)
         
 
     for i in range(robots_NUM):
         spawn_entity = Node(package='gazebo_ros', executable='spawn_entity.py',
                             arguments=['-entity', 'turtlebot'+str(i), '-database', 'turtlebot3_' + TURTLEBOT3_MODEL, '-robot_namespace', 'turtlebot'+str(i),
-                                    '-x', str(float(x_pos[i])), '-y', str(float(y_pos[i])), '-z', str(0.1), '-Y', str((2*i+1)*theta),
+                                    '-x', str(float(x_pos[i])), '-y', str(float(y_pos[i])), '-z', str(0.1), '-Y', str(theta[i]),
                             ],
                             output='screen')
 

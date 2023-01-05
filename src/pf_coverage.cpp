@@ -535,6 +535,9 @@ void Controller::pf_coverage()
 
     Vector2<double> p = {this->pose_x(ROBOT_ID), this->pose_y(ROBOT_ID)};
     std::vector<Vector2<double>> local_points;
+    local_points.push_back(p);
+    // Vector2<double> p_local = {0.0, 0.0};
+    // local_points.push_back(p_local);
     for (int i = 0; i < mean_points.size(); i++)
     {
         Vector2<double> p_local = {mean_points[i](0) - p.x, mean_points[i](1) - p.y};
@@ -605,6 +608,8 @@ void Controller::pf_coverage()
 
         // Draw Voronoi diagram (centralized)
         std::vector<Vector2<double>> mean_points_vec2;
+        Vector2<double> n = {this->pose_x(ROBOT_ID), this->pose_y(ROBOT_ID)};
+        mean_points_vec2.push_back(n);
         for (int j = 0; j < mean_points.size(); j++)
         {
             Vector2<double> mp = {mean_points[j](0), mean_points[j](1)};
@@ -740,7 +745,7 @@ void Controller::pf_coverage()
     // Change angular velocity only in unsafe condition
     if (omega != 0.0)
     {
-        vel.angular.z = 0.5;
+        vel.angular.z = 0.8;
     }
 
     this->velPub_[0]->publish(vel);
@@ -1057,7 +1062,7 @@ void Controller::pf_milling()
     // Change angular velocity only in unsafe condition
     if (omega != 0.0)
     {
-        vel.angular.z = 0.5;
+        vel.angular.z = 0.8;
     }
 
     this->velPub_[0]->publish(vel);

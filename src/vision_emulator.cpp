@@ -70,7 +70,7 @@ public:
         this->get_parameter("ROBOT_RANGE", ROBOT_RANGE);
         
         // Field of view (degrees)
-        this->declare_parameter<double>("ROBOT_FOV", 120.0);
+        this->declare_parameter<double>("ROBOT_FOV", 150.0);
         this->get_parameter("ROBOT_FOV", ROBOT_FOV);
         
         //view graphical voronoi rapresentation - bool
