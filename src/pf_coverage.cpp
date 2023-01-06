@@ -385,7 +385,6 @@ Eigen::VectorXd Controller::getWheelVelocity(Eigen::VectorXd u, double alpha)
 
 void Controller::pf_coverage()
 {
-    std::cout << "SONO NEL MAIN LOOP" << std::endl;
     auto timerstart = this->get_clock()->now().nanoseconds();
     Eigen::VectorXd u(2);
     u << 0.5, 0.5;
@@ -429,13 +428,13 @@ void Controller::pf_coverage()
                     Eigen::VectorXd q_est = filters[c]->getMean();
                     mean_points.push_back(q_est);
                     std::cout << "Estimated state: " << q_est.transpose() << std::endl;
-                    u_ax = predictVelocity(q_est, robot);                        // get linear velocity [vx, vy] moving towards me
+                    u_ax = predictVelocity(q_est, GAUSSIAN_MEAN_PT);                        // get linear velocity [vx, vy] moving towards me
                     std::cout << "Linear velocity: " << u_ax.transpose() << std::endl;
                     Eigen::VectorXd u_est(2);
                     u_est = getWheelVelocity(u_ax, q_est(2));                               // get wheel velocity [v_l, v_r] to reach the mean point
                     std::cout << "wheels velocity: " << u_est.transpose() << std::endl;
                     filters[c]->setProcessCovariance(processCovariance);
-                    filters[c]->predict(u_est,dt);
+                    filters[c]->predict(0.5*u_est,dt);
                     std::cout << "Prediction completed" << std::endl;
 
                     // Get particles in required format
@@ -639,7 +638,7 @@ void Controller::pf_coverage()
                     // s = 4.605 for 90% confidence interval
                     // s = 5.991 for 95% confidence interval
                     // s = 9.210 for 99% confidence interval
-                    double s = 5.991;
+                    double s = 4.605;
                     double a = sqrt(s*eigenvalues(0));            // major axis
                     double b = sqrt(s*eigenvalues(1));            // minor axis
 

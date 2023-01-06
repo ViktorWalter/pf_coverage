@@ -66,7 +66,7 @@ public:
         this->get_parameter("ROBOTS_NUM", ROBOTS_NUM);
 
         //Range di percezione singolo robot (= metà lato box locale)
-        this->declare_parameter<double>("ROBOT_RANGE", 15.0);
+        this->declare_parameter<double>("ROBOT_RANGE", 30.0);
         this->get_parameter("ROBOT_RANGE", ROBOT_RANGE);
         
         // Field of view (degrees)

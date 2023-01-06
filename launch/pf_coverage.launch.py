@@ -18,16 +18,16 @@ from ament_index_python.packages import get_package_prefix
 
 def generate_launch_description():
     TURTLEBOT3_MODEL = os.environ['TURTLEBOT3_MODEL']
-    ROBOTS_NUM = 6
+    ROBOTS_NUM = 8
     AREA_SIZE_x = 40.0
     AREA_SIZE_y = 40.0
     AREA_LEFT = -20.0
     AREA_BOTTOM = -20.0
-    ROBOT_RANGE = 15.0
+    ROBOT_RANGE = 30.0
     ROBOT_FOV = 150.0
 
     # MODE: 0 = coverage, 1 = milling
-    MODE = 1
+    MODE = 0
 
     ld = []
     # supervisor
@@ -39,8 +39,8 @@ def generate_launch_description():
 
     # ld.append(n)
 
-    xg = [4.0, 4.0, -4.0, -4.0, 0.0, 0.0]
-    yg = [-4.0, 4.0, 4.0, -4.0, -6.0, 6.0]
+    xg = [4.0, 4.0, -4.0, -4.0, 0.0, 0.0, 6.0, -6.0]
+    yg = [-4.0, 4.0, 4.0, -4.0, -6.0, 6.0, 0.0, 0.0]
 
     for i in range(0,ROBOTS_NUM):
         n = Node(
