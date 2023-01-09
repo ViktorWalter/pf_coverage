@@ -5,7 +5,6 @@
 #include <random>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/impl/utils.h>
-#include <chrono>
 #include <functional>
 #include <memory>
 #include <string>
@@ -39,6 +38,7 @@
 // #include "geometry_msgs/msg/point.hpp"
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/Twist.h>
+#include <geometry_msgs/TwistStamped.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/PoseArray.h>
 #include <nav_msgs/Odometry.h>
@@ -58,8 +58,8 @@ using namespace std::chrono_literals;
 using std::placeholders::_1;
 
 //Robots parameters ------------------------------------------------------
-const double MAX_ANG_VEL = 0.5;
-const double MAX_LIN_VEL = 0.5;         //set to turtlebot max velocities
+const double MAX_ANG_VEL = 3.0;
+const double MAX_LIN_VEL = 1.5;         //set to turtlebot max velocities
 const double b = 0.025;                 //for differential drive control (only if we are moving a differential drive robot (e.g. turtlebot))
 //------------------------------------------------------------------------
 const bool centralized_centroids = false;   //compute centroids using centralized computed voronoi diagram
@@ -112,19 +112,19 @@ public:
     //--------------------------------------------------- Subscribers and Publishers ----------------------------------------------------
     for (int i = 0; i < ROBOTS_NUM; i++)
     {   
-        realposeSub_.push_back(nh_.subscribe<nav_msgs::Odometry>("/turtlebot" + std::to_string(i) + "/odom", 1, std::bind(&Controller::realposeCallback, this, std::placeholders::_1, i)));
+        realposeSub_.push_back(nh_.subscribe<nav_msgs::Odometry>("/hummingbird" + std::to_string(i) + "/ground_truth/odometry", 1, std::bind(&Controller::realposeCallback, this, std::placeholders::_1, i)));
     }
     
-    odomSub_ = nh_.subscribe<nav_msgs::Odometry>("/turtlebot" + std::to_string(ROBOT_ID) + "/odom", 1, std::bind(&Controller::odomCallback, this, std::placeholders::_1));
+    odomSub_ = nh_.subscribe<nav_msgs::Odometry>("/hummingbird" + std::to_string(ROBOT_ID) + "/ground_truth/odometry", 1, std::bind(&Controller::odomCallback, this, std::placeholders::_1));
     neighSub_ = nh_.subscribe<geometry_msgs::PoseArray>("/supervisor/robot" + std::to_string(ROBOT_ID) + "/pose", 1, std::bind(&Controller::neighCallback, this, std::placeholders::_1));
     joySub_ = nh_.subscribe<geometry_msgs::Twist>("/cmd_vel", 1, std::bind(&Controller::joy_callback, this, std::placeholders::_1));
-    velPub_.push_back(nh_.advertise<geometry_msgs::Twist>("/turtlebot" + std::to_string(ROBOT_ID) + "/cmd_vel", 1));
+    velPub_.push_back(nh_.advertise<geometry_msgs::TwistStamped>("/hummingbird" + std::to_string(ROBOT_ID) + "/autopilot/velocity_command", 1));
     if (MODE == 0)
     {
-        timer_ = nh_.createTimer(ros::Duration(0.5), std::bind(&Controller::pf_coverage, this));
+        timer_ = nh_.createTimer(ros::Duration(0.2), std::bind(&Controller::pf_coverage, this));
     } else if (MODE == 1)
     {
-        timer_ = nh_.createTimer(ros::Duration(0.5), std::bind(&Controller::pf_milling, this));
+        timer_ = nh_.createTimer(ros::Duration(0.2), std::bind(&Controller::pf_milling, this));
     }
     
     //rclcpp::on_shutdown(std::bind(&Controller::stop,this));
@@ -211,12 +211,13 @@ public:
 
 
 private:
-    int ROBOTS_NUM = 4;
+    int ROBOTS_NUM = 6;
     double ROBOT_RANGE = 15.0;
     int ROBOT_ID = 0;
-    double ROBOT_FOV = 120.0;
+    double ROBOT_FOV = 150.0;
     int MODE = 0;
-    double GOAL_X, GOAL_Y;
+    double GOAL_X = 10.0;
+    double GOAL_Y = 10.0;
     // int PARTICLES_NUM;
     std::vector<bool> got_gmm;
     double vel_linear_x, vel_angular_z;
@@ -233,7 +234,7 @@ private:
     std::vector<double> position;
     // Eigen::VectorXd start;
     // Eigen::VectorXd initCovariance;
-    double dt = 0.5;
+    double dt = 0.2;
     std::vector<bool> justLost;
 
     //------------------------------- Ros NodeHandle ------------------------------------
@@ -281,7 +282,7 @@ private:
     //------------------------------------------------------------------------------------
 
     //graphical view - ON/OFF
-    bool GRAPHICS_ON;
+    bool GRAPHICS_ON = true;
 
     //timer - check how long robots are being stopped
     time_t timer_init_count;
@@ -352,7 +353,7 @@ Eigen::VectorXd Controller::getWheelVelocity(Eigen::VectorXd u, double alpha)
 
 void Controller::pf_coverage()
 {
-    auto timerstart = ros::Time::now();
+    auto timerstart = std::chrono::high_resolution_clock::now();
     Eigen::VectorXd u(2);
     u << 0.5, 0.5;
     Eigen::VectorXd processCovariance = 0.1*Eigen::VectorXd::Ones(3);
@@ -397,11 +398,11 @@ void Controller::pf_coverage()
                     std::cout << "Estimated state: " << q_est.transpose() << std::endl;
                     u_ax = predictVelocity(q_est, GAUSSIAN_MEAN_PT);                        // get linear velocity [vx, vy] moving towards me
                     std::cout << "Linear velocity: " << u_ax.transpose() << std::endl;
-                    Eigen::VectorXd u_est(2);
-                    u_est = getWheelVelocity(u_ax, q_est(2));                               // get wheel velocity [v_l, v_r] to reach the mean point
-                    std::cout << "wheels velocity: " << u_est.transpose() << std::endl;
+                    // Eigen::VectorXd u_est(2);
+                    // u_est = getWheelVelocity(u_ax, q_est(2));                               // get wheel velocity [v_l, v_r] to reach the mean point
+                    // std::cout << "wheels velocity: " << u_est.transpose() << std::endl;
                     filters[c]->setProcessCovariance(processCovariance);
-                    filters[c]->predict(0.5*u_est,dt);
+                    filters[c]->predictUAV(u_ax,dt);
                     std::cout << "Prediction completed" << std::endl;
 
                     // Get particles in required format
@@ -488,7 +489,7 @@ void Controller::pf_coverage()
     }
 
     // Send velocity to the robot
-    geometry_msgs::Twist vel;
+    geometry_msgs::TwistStamped vel;
 
     std::cout << "Starting Voronoi calculation... \n";
     // ------------------------------- Voronoi -------------------------------
@@ -534,7 +535,14 @@ void Controller::pf_coverage()
     //-------------------------------------------------------------------------------------------------------
     //Compute velocities commands for the robot: differential drive control, for UAVs this is not necessary
     //-------------------------------------------------------------------------------------------------------
-    vel = this->Diff_drive_compute_vel(vel_x, vel_y, this->pose_theta[ROBOT_ID]);
+    // vel.twist = this->Diff_drive_compute_vel(vel_x, vel_y, this->pose_theta[ROBOT_ID]);
+    vel.twist.linear.x = vel_x;
+    vel.twist.linear.y = vel_y;
+    double th = atan2(centroid.y, centroid.x);
+    double ww = 0.8 * (th - this->pose_theta[ROBOT_ID]);
+    vel.twist.angular.z = ww;
+    std::cout << "Angular velocity: " << ww << std::endl;
+
 
     //-------------------------------------------------------------------------------------------------------
 
@@ -700,8 +708,9 @@ void Controller::pf_coverage()
             double theta_des = atan2((mean_points[i](1)-this->pose_y(ROBOT_ID)), (mean_points[i](0)-this->pose_x(ROBOT_ID)));
             double w = -0.5*(theta_des - this->pose_theta(ROBOT_ID));
             if (abs(w) > abs(omega)) {omega = w;}
-            vel.linear.x = 0.0;
-            vel.angular.z = 0.0;
+            vel.twist.linear.x = 0.0;
+            vel.twist.linear.y = 0.0;
+            vel.twist.angular.z = 0.0;
         } else
         {
             std::cout << "Safe condition. Moving to goal." << "\n";
@@ -711,20 +720,20 @@ void Controller::pf_coverage()
     // Change angular velocity only in unsafe condition
     if (omega != 0.0)
     {
-        vel.angular.z = 0.8;
+        vel.twist.angular.z = MAX_ANG_VEL;
     }
 
     this->velPub_[0].publish(vel);
 
-    auto end = ros::Time::now();
-    std::cout<<"Computation time cost: -----------------: "<<end - timerstart<<std::endl;
+    auto end = std::chrono::high_resolution_clock::now();
+    std::cout<<"Computation time cost: -----------------: "<<std::chrono::duration_cast<std::chrono::nanoseconds>(end - timerstart).count()<<" ns\n";
 }
 
 
 void Controller::pf_milling()
 {
     // std::cout << "Starting" << std::endl;
-    auto timerstart = ros::Time::now();
+    auto timerstart = std::chrono::high_resolution_clock::now();
     Eigen::VectorXd u(2);
     u << 0.5, 0.5;
     Eigen::VectorXd processCovariance = 0.1*Eigen::VectorXd::Ones(3);
@@ -768,11 +777,11 @@ void Controller::pf_milling()
                     // std::cout << "Estimated state: " << q_est.transpose() << std::endl;
                     u_ax = predictVelocity(q_est, robot);                        // get linear velocity [vx, vy] moving towards me
                     // std::cout << "Linear velocity: " << u_ax.transpose() << std::endl;
-                    Eigen::VectorXd u_est(2);
-                    u_est = getWheelVelocity(u_ax, q_est(2));                               // get wheel velocity [v_l, v_r] to reach the mean point
+                    // Eigen::VectorXd u_est(2);
+                    // u_est = getWheelVelocity(u_ax, q_est(2));                               // get wheel velocity [v_l, v_r] to reach the mean point
                     // std::cout << "wheels velocity: " << u_est.transpose() << std::endl;
                     filters[c]->setProcessCovariance(processCovariance);
-                    filters[c]->predict(u_est,dt);
+                    filters[c]->predictUAV(u_ax,dt);
                     // std::cout << "Prediction completed" << std::endl;
 
                     // Get particles in required format
@@ -993,18 +1002,31 @@ void Controller::pf_milling()
 
 
     // Send velocity to the robot
-    geometry_msgs::Twist vel;
+    geometry_msgs::TwistStamped vel;
     // vel.linear.x = this->vel_linear_x;
     // vel.angular.z = this->vel_angular_z;
     double xg = GOAL_X - this->pose_x(ROBOT_ID);
     double yg = GOAL_Y - this->pose_y(ROBOT_ID);
     if (xg * xg + yg * yg < CONVERGENCE_TOLERANCE)
     {
-        vel.linear.x = 0.0;
-        vel.angular.z = 0.0;
+        vel.twist.linear.x = 0.0;
+        vel.twist.linear.y = 0.0;
+        vel.twist.angular.z = 0.0;
     } else
     {
-        vel = Diff_drive_compute_vel(0.5*xg, 0.5*yg, this->pose_theta(ROBOT_ID));
+        // vel.twist = Diff_drive_compute_vel(0.5*xg, 0.5*yg, this->pose_theta(ROBOT_ID));
+        if (xg > MAX_LIN_VEL) {xg = MAX_LIN_VEL;}
+        else if (xg < -MAX_LIN_VEL) {xg = -MAX_LIN_VEL;}
+        if (yg > MAX_LIN_VEL) {yg = MAX_LIN_VEL;}
+        else if (yg < -MAX_LIN_VEL) {yg = -MAX_LIN_VEL;}
+        vel.twist.linear.x = xg;
+        vel.twist.linear.y = yg;
+        double ww = atan2(yg, xg) - this->pose_theta(ROBOT_ID);
+        if (ww > M_PI) {ww -= 2*M_PI;}
+        else if (ww < -M_PI) {ww += 2*M_PI;}
+        if (ww > MAX_ANG_VEL) {ww = MAX_ANG_VEL;}
+        else if (ww < -MAX_ANG_VEL) {ww = -MAX_ANG_VEL;}
+        vel.twist.angular.z = ww;
     }
 
     double omega = 0.0;
@@ -1017,8 +1039,9 @@ void Controller::pf_milling()
             double theta_des = atan2((mean_points[i](1)-this->pose_y(ROBOT_ID)), (mean_points[i](0)-this->pose_x(ROBOT_ID)));
             double w = -0.5*(theta_des - this->pose_theta(ROBOT_ID));
             if (abs(w) > abs(omega)) {omega = w;}
-            vel.linear.x = 0.0;
-            vel.angular.z = 0.0;
+            vel.twist.linear.x = 0.0;
+            vel.twist.linear.y = 0.0;
+            vel.twist.angular.z = 0.0;
         } else
         {
             std::cout << "Safe condition. Moving to goal." << "\n";
@@ -1028,13 +1051,14 @@ void Controller::pf_milling()
     // Change angular velocity only in unsafe condition
     if (omega != 0.0)
     {
-        vel.angular.z = 0.8;
+        vel.twist.angular.z = MAX_ANG_VEL;
     }
 
     this->velPub_[0].publish(vel);
 
-    auto end = ros::Time::now();
-    std::cout<<"Computation time cost: -----------------: "<<end - timerstart<<std::endl;
+    auto end = std::chrono::high_resolution_clock::now();
+
+    std::cout<<"Computation time cost: -----------------: "<<std::chrono::duration_cast<std::chrono::nanoseconds>(end - timerstart).count()<<" ns\n";
 }
 
 void Controller::test_print()
@@ -1052,7 +1076,7 @@ void Controller::stop()
     // this->timer_->cancel();
     ros::Duration(0.1).sleep();
 
-    geometry_msgs::Twist vel_msg;
+    geometry_msgs::TwistStamped vel_msg;
     for (int i = 0; i < 100; ++i)
     {
         this->velPub_[0].publish(vel_msg);
@@ -1096,6 +1120,9 @@ void Controller::odomCallback(const nav_msgs::Odometry::ConstPtr msg)
     m.getRPY(roll, pitch, yaw);
 
     this->pose_theta(ROBOT_ID) = yaw;
+
+    // std::cout << "I'm in odomCallback" << "\n";
+    // std::cout << "Robot position: " << this->pose_x(ROBOT_ID) << ", " << this->pose_y(ROBOT_ID) << ", " << this->pose_theta(ROBOT_ID) << "\n";
 }
 
 void Controller::neighCallback(const geometry_msgs::PoseArray::ConstPtr msg)
@@ -1116,7 +1143,13 @@ void Controller::neighCallback(const geometry_msgs::PoseArray::ConstPtr msg)
             double roll, pitch, yaw;
             m.getRPY(roll, pitch, yaw);
 
-            this->pose_theta(j) = yaw;
+            if (!isnan(yaw))
+            {
+                this->pose_theta(j) = yaw;
+            } else
+            {
+                this->pose_theta(j) = M_PI;
+            }
 
             // Conversion to global position
             Eigen::MatrixXd R_w_i;                          // rotation matrix from local to global
@@ -1144,6 +1177,21 @@ Eigen::VectorXd Controller::predictVelocity(Eigen::VectorXd q, Eigen::VectorXd g
     double K_gain = 1.0;
     u(0) = K_gain * (goal(0) - q(0));
     u(1) = K_gain * (goal(1) - q(1));
+
+    if (u(0) > MAX_LIN_VEL)
+    {
+        u(0) = MAX_LIN_VEL;
+    } else if (u(0) < -MAX_LIN_VEL)
+    {
+        u(0) = -MAX_LIN_VEL;
+    }
+    if (u(1) > MAX_LIN_VEL)
+    {
+        u(1) = MAX_LIN_VEL;
+    } else if (u(1) < -MAX_LIN_VEL)
+    {
+        u(1) = -MAX_LIN_VEL;
+    }
 
     return u;
 }
