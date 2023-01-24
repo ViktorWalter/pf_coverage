@@ -22,8 +22,10 @@
             AREA_LEFT: -20.0
             AREA_BOTTOM: -20.0
             GRAPHICS_ON: true
-            GOAL_X: 4.0
-            GOAL_Y: -4.0
+            GOAL_X: 8.0
+            GOAL_Y: -8.0
+            GAUSS_X: -10.0
+            GAUSS_Y: 10.0
         </rosparam>
     </node>
 
@@ -39,8 +41,10 @@
             AREA_LEFT: -20.0
             AREA_BOTTOM: -20.0
             GRAPHICS_ON: true
-            GOAL_X: 4.0
-            GOAL_Y: 4.0
+            GOAL_X: 8.0
+            GOAL_Y: 8.0
+            GAUSS_X: -10.0
+            GAUSS_Y: 10.0
         </rosparam>
     </node>
 
@@ -56,8 +60,10 @@
             AREA_LEFT: -20.0
             AREA_BOTTOM: -20.0
             GRAPHICS_ON: true
-            GOAL_X: -4.0
-            GOAL_Y: 4.0
+            GOAL_X: -8.0
+            GOAL_Y: 8.0
+            GAUSS_X: -10.0
+            GAUSS_Y: 10.0
         </rosparam>
     </node>
 
@@ -73,8 +79,10 @@
             AREA_LEFT: -20.0
             AREA_BOTTOM: -20.0
             GRAPHICS_ON: true
-            GOAL_X: -4.0
-            GOAL_Y: -4.0
+            GOAL_X: -8.0
+            GOAL_Y: -8.0
+            GAUSS_X: -10.0
+            GAUSS_Y: 10.0
         </rosparam>
     </node>
 
@@ -91,7 +99,9 @@
             AREA_BOTTOM: -20.0
             GRAPHICS_ON: true
             GOAL_X: 0.0
-            GOAL_Y: -6.0
+            GOAL_Y: -10.0
+            GAUSS_X: -10.0
+            GAUSS_Y: 10.0
         </rosparam>
     </node>
 
@@ -108,7 +118,9 @@
             AREA_BOTTOM: -20.0
             GRAPHICS_ON: true
             GOAL_X: 0.0
-            GOAL_Y: 6.0
+            GOAL_Y: 10.0
+            GAUSS_X: -10.0
+            GAUSS_Y: 10.0
         </rosparam>
     </node>
 </launch>

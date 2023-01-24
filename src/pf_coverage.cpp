@@ -32,6 +32,7 @@
 #include "Voronoi.h"
 #include "Diagram.h"
 #include "Graphics.h"
+#include <SFML/Window/Mouse.hpp>
 // ROS includes
 #include "ros/ros.h"
 // #include "std_msgs/msg/string.hpp"
@@ -58,8 +59,10 @@ using namespace std::chrono_literals;
 using std::placeholders::_1;
 
 //Robots parameters ------------------------------------------------------
-const double MAX_ANG_VEL = 3.0;
+double SAFETY_DIST = 1.0;
 const double MAX_LIN_VEL = 1.5;         //set to turtlebot max velocities
+// const double MAX_ANG_VEL = 2*M_PI*MAX_LIN_VEL/SAFETY_DIST;
+const double MAX_ANG_VEL = 3.0;
 const double b = 0.025;                 //for differential drive control (only if we are moving a differential drive robot (e.g. turtlebot))
 //------------------------------------------------------------------------
 const bool centralized_centroids = false;   //compute centroids using centralized computed voronoi diagram
@@ -108,6 +111,9 @@ public:
         this->nh_priv_.getParam("GOAL_X", GOAL_X);
         this->nh_priv_.getParam("GOAL_Y", GOAL_Y);
 
+        this->nh_priv_.getParam("GAUSS_X", GAUSS_X);
+        this->nh_priv_.getParam("GAUSS_Y", GAUSS_Y);
+
 
     //--------------------------------------------------- Subscribers and Publishers ----------------------------------------------------
     for (int i = 0; i < ROBOTS_NUM; i++)
@@ -138,7 +144,7 @@ public:
     realpose_y = Eigen::VectorXd::Zero(ROBOTS_NUM);
     realpose_theta = Eigen::VectorXd::Zero(ROBOTS_NUM);
     GAUSSIAN_MEAN_PT.resize(2);
-    GAUSSIAN_MEAN_PT << 10.0, 10.0;                       // Gaussian mean point
+    GAUSSIAN_MEAN_PT << GAUSS_X, GAUSS_Y;                       // Gaussian mean point
     time(&this->timer_init_count);
     time(&this->timer_final_count);
 
@@ -193,8 +199,11 @@ public:
     Eigen::MatrixXd Diag_Matrix(Eigen::VectorXd V);
     void pf_coverage();
     void pf_milling();
+    void save_distribution(std::vector<gauss::gmm::GaussianMixtureModel*> mix_models);
     void coverage();
     bool insideFOV(Eigen::VectorXd q, Eigen::VectorXd q_obs, double fov, double r_sens);
+    bool is_outlier(Eigen::VectorXd q, Eigen::VectorXd mean, Eigen::MatrixXd cov_matrix, double threshold);
+    bool isOut(Eigen::VectorXd sample, Eigen::VectorXd mean, Eigen::MatrixXd cov_matrix);
     Eigen::VectorXd predictVelocity(Eigen::VectorXd q, Eigen::VectorXd mean_pt);
     Eigen::VectorXd getWheelVelocity(Eigen::VectorXd u, double alpha);
     geometry_msgs::Twist Diff_drive_compute_vel(double vel_x, double vel_y, double alfa);
@@ -202,7 +211,6 @@ public:
     Eigen::VectorXd initCovariance = 0.001*Eigen::VectorXd::Ones(3);
     int PARTICLES_NUM = 100;
     const std::size_t num_clusters = 1;
-    double SAFETY_DIST = 1.0;
     // ParticleFilter *global_filter = new ParticleFilter(3*PARTICLES_NUM, start, initCovariance);
 
     
@@ -218,6 +226,8 @@ private:
     int MODE = 0;
     double GOAL_X = 10.0;
     double GOAL_Y = 10.0;
+    double GAUSS_X = 10.0;
+    double GAUSS_Y = 10.0;
     // int PARTICLES_NUM;
     std::vector<bool> got_gmm;
     double vel_linear_x, vel_angular_z;
@@ -538,11 +548,21 @@ void Controller::pf_coverage()
     // vel.twist = this->Diff_drive_compute_vel(vel_x, vel_y, this->pose_theta[ROBOT_ID]);
     vel.twist.linear.x = vel_x;
     vel.twist.linear.y = vel_y;
-    double th = atan2(centroid.y, centroid.x);
-    double ww = 0.8 * (th - this->pose_theta[ROBOT_ID]);
-    vel.twist.angular.z = ww;
-    std::cout << "Angular velocity: " << ww << std::endl;
-
+    // double th;
+    // if (vel_x != 0 && vel_y != 0)
+    // {
+    //     th = atan2(centroid.y, centroid.x);   
+    // } else
+    // {
+    //     th = atan2((GAUSSIAN_MEAN_PT(1) - this->pose_y(ROBOT_ID)), GAUSSIAN_MEAN_PT(0) - this->pose_x(ROBOT_ID));
+    // }
+    if (sqrt(pow(centroid.x,2) + pow(centroid.y,2)) > CONVERGENCE_TOLERANCE)
+    {
+        double th = atan2(centroid.y, centroid.x);
+        double ww = 0.8 * (th - this->pose_theta[ROBOT_ID]);
+        vel.twist.angular.z = ww;
+        std::cout << "Angular velocity: " << ww << std::endl;
+    }
 
     //-------------------------------------------------------------------------------------------------------
 
@@ -579,6 +599,13 @@ void Controller::pf_coverage()
                 this->app_gui->drawParticles(filters[j]->getParticles());
             }
         }
+
+        // while (sf::Mouse::isButtonPressed(sf::Mouse::Left))
+        // {
+        //     std::cout << "Saving distrribution.\n";
+        //     this->save_distribution(mix_models);
+        //     std::cout << "Distribution saved.\n";
+        // }   
 
         // Draw Voronoi diagram (centralized)
         std::vector<Vector2<double>> mean_points_vec2;
@@ -694,6 +721,7 @@ void Controller::pf_coverage()
     //     double theta_des = atan2((ym-this->realpose_y(ROBOT_ID)), (xm-this->realpose_x(ROBOT_ID)));
     //     w  = 0.5*(theta_des - this->realpose_theta(ROBOT_ID));
     // }
+    
 
 
     
@@ -717,7 +745,7 @@ void Controller::pf_coverage()
         }
     }
 
-    // Change angular velocity only in unsafe condition
+    // Start rotating in unsafe condition
     if (omega != 0.0)
     {
         vel.twist.angular.z = MAX_ANG_VEL;
@@ -736,7 +764,7 @@ void Controller::pf_milling()
     auto timerstart = std::chrono::high_resolution_clock::now();
     Eigen::VectorXd u(2);
     u << 0.5, 0.5;
-    Eigen::VectorXd processCovariance = 0.1*Eigen::VectorXd::Ones(3);
+    Eigen::VectorXd processCovariance = 1.0*Eigen::VectorXd::Ones(3);
     Eigen::VectorXd robot(3);                           // controlled robot's global position
     robot << this->pose_x(ROBOT_ID), this->pose_y(ROBOT_ID), this->pose_theta(ROBOT_ID);
     std::vector<Eigen::VectorXd> total_samples;                                       // samples from the filter
@@ -773,6 +801,15 @@ void Controller::pf_milling()
                     // Estimate velocity of the lost robot for coverage
                     Eigen::VectorXd u_ax(2);
                     Eigen::VectorXd q_est = filters[c]->getMean();
+                    if (insideFOV(robot, q_est, ROBOT_FOV, ROBOT_RANGE))
+                    {
+                        double th = atan2(q_est(1)-robot(1), q_est(0)-robot(0));
+                        q_est(0) = robot(0) + ROBOT_RANGE*cos(th);
+                        q_est(1) = robot(1) + ROBOT_RANGE*sin(th);
+                        filters[c]->setState(q_est);
+                        this->got_gmm[c] = false;
+                        
+                    }
                     mean_points.push_back(q_est);
                     // std::cout << "Estimated state: " << q_est.transpose() << std::endl;
                     u_ax = predictVelocity(q_est, robot);                        // get linear velocity [vx, vy] moving towards me
@@ -787,21 +824,40 @@ void Controller::pf_milling()
                     // Get particles in required format
                     Eigen::MatrixXd particles = filters[c]->getParticles();
                     std::vector<Eigen::VectorXd> samples;
+                    int outliers_counter = 0;
                     for (int i=0; i<particles.cols(); i++)
                     {
                         Eigen::VectorXd sample = particles.col(i);
                         if (!insideFOV(robot, sample, ROBOT_FOV, ROBOT_RANGE))
                         {
-                            samples.push_back(sample);
+                            if (this->got_gmm[c])
+                            {
+                                Eigen::MatrixXd covm = mix_models[c]->getClusters()[0].distribution->getCovariance();
+                                Eigen::VectorXd m = mix_models[c]->getClusters()[0].distribution->getMean();
+                                if (!isOut(sample, m, covm))
+                                {
+                                    samples.push_back(sample);
+                                } else
+                                {
+                                    outliers_counter += 1;
+                                }
+                            } 
+                            // else
+                            // {
+                            //     samples.push_back(sample);
+                            // }
                         }
                         // samples.push_back(sample);
                     }
                     // std::cout << "Particles converted to required format" << std::endl;
+                    std::cout << "====================================\n";
+                    std::cout << "Robot " << j << "'s outliers: " << outliers_counter << std::endl;
+                    std::cout << "====================================\n";
 
                     // Generate new samples to fill the filter 
                     if (this->got_gmm[c])
                     {   
-                        // std::cout << "GMM already available. Generating needed particles: " << (PARTICLES_NUM - samples.size()) << std::endl; 
+                        std::cout << "GMM already available. Generating needed particles: " << (PARTICLES_NUM - samples.size()) << std::endl; 
                         std::vector<Eigen::VectorXd> samples_gmm = mix_models[c]->drawSamples(PARTICLES_NUM - samples.size());
                         // std::cout << "Particles generated from GMM" << std::endl;
                         for (int k = 0; k < samples_gmm.size(); k++)
@@ -847,7 +903,7 @@ void Controller::pf_milling()
                     this->got_gmm[c] = true;
                     mix_models[c] = model;
 
-                    Eigen::MatrixXd covm = mix_models[c]->getClusters()[0].distribution->getCovariance();
+                    
                     // Remove samples inside FOV
                     // Eigen::VectorXd robot = Eigen::VectorXd::Zero(3);                           // controlled robot's position (always in 0,0,0 because in local coordinates)
                     // std::vector<Eigen::VectorXd> samples_filtered;
@@ -1178,6 +1234,12 @@ Eigen::VectorXd Controller::predictVelocity(Eigen::VectorXd q, Eigen::VectorXd g
     u(0) = K_gain * (goal(0) - q(0));
     u(1) = K_gain * (goal(1) - q(1));
 
+    if (sqrt(pow(goal(0) - q(0),2) + pow(goal(1) - q(1),2)) < CONVERGENCE_TOLERANCE)
+    {
+        u(0) = 0;
+        u(1) = 0;
+    }
+
     if (u(0) > MAX_LIN_VEL)
     {
         u(0) = MAX_LIN_VEL;
@@ -1272,6 +1334,104 @@ geometry_msgs::Twist Controller::Diff_drive_compute_vel(double vel_x, double vel
         }
     }
     return vel_msg;
+}
+
+
+void Controller::save_distribution(std::vector<gauss::gmm::GaussianMixtureModel*> mix_models)
+{
+    std::ofstream myfile;
+    myfile.open ("/home/mattia/distribution"+std::to_string(ROBOT_ID)+".txt");
+    myfile << "Considering Robot number " << ROBOT_ID << " in position " << this->pose_x(ROBOT_ID) << ", " << this->pose_y(ROBOT_ID) << ", " << this->pose_theta(ROBOT_ID) << "\n";
+    for (int j = 0; j < mix_models.size(); j++)
+    {
+        double c = j;
+        if (j > ROBOT_ID) {c = j-1;}
+        if (j == ROBOT_ID) {continue;}
+        if (this->pose_x(j) != 100.0 && this->pose_y(j) != 100.0)
+        {
+            myfile << "Robot number " << j << " detected.\n";
+            myfile << "Position: " << this->pose_x(j) << ", " << this->pose_y(j) << ", " << this->pose_theta(j) << "\n";
+
+        } else
+        {
+            myfile << "Robot number " << j  << " not detected. "<< "\n";
+            myfile << "Mean: " << mix_models[c]->getClusters()[0].distribution->getMean().transpose() << "\n";
+            myfile << "Covariance: \n" << mix_models[c]->getClusters()[0].distribution->getCovariance() << "\n";
+        }
+        
+    }
+    myfile.close();
+}
+
+bool Controller::is_outlier(Eigen::VectorXd q, Eigen::VectorXd mean, Eigen::MatrixXd cov_matrix, double threshold = 1e-3)
+{
+    Eigen::VectorXd diff = q - mean;
+    double exponent = -0.5 * diff.transpose() * cov_matrix.inverse() * diff;
+    double det = sqrt(pow(2*M_PI,2)*cov_matrix.determinant());
+    double w = 1/det * exp(exponent);
+    if (w > threshold)
+    {
+        return false;
+    } else
+    {
+        // std::cout << "===================================\n";
+        // std::cout << "Outlier detected!! Score: " << w << "\n";
+        // std::cout << "===================================\n";
+        return true;
+    }
+}
+
+bool Controller::isOut(Eigen::VectorXd sample, Eigen::VectorXd mean, Eigen::MatrixXd cov_matrix)
+{
+    if(!isinf(cov_matrix(0,0)))
+    {
+        Eigen::EigenSolver<Eigen::MatrixXd> es(cov_matrix.block<2,2>(0,0));
+        Eigen::VectorXd eigenvalues  = es.eigenvalues().real();
+        // std::cout << "Eigenvalues: \n" << eigenvalues.transpose() << "\n";
+        Eigen::MatrixXd eigenvectors = es.eigenvectors().real();
+        // std::cout << "Eigenvectors: \n" << eigenvectors.transpose() << "\n";
+        
+        // s = 4.605 for 90% confidence interval
+        // s = 5.991 for 95% confidence interval
+        // s = 9.210 for 99% confidence interval
+        double s = 10.597;
+        double a = sqrt(s*eigenvalues(0));            // major axis
+        double b = sqrt(s*eigenvalues(1));            // minor axis
+
+        // a could be smaller than b, so swap them
+        if (a < b)
+        {
+            double temp = a;
+            a = b;
+            b = temp;
+        }
+
+        int m = 0;                  // higher eigenvalue index
+        int l = 1;                  // lower eigenvalue index
+        if (eigenvalues(1) > eigenvalues(0)) 
+        {
+            m = 1;
+            l = 0;
+        }
+        
+        double theta = atan2(eigenvectors(1,m), eigenvectors(0,m));             // angle of the major axis wrt positive x-asis (ccw rotation)
+        if (theta < 0.0) {theta += M_PI;}                                    // angle in [0, 2pi
+        double slope = atan2(sample(1)-mean(1), sample(0)-mean(0));           // angle of the line connecting the robot and the sample
+        double dx_edge = mean(0) + a*cos(theta)*cos(slope) - b*sin(theta)*sin(slope); // x coordinate of the edge of the ellipse
+        double dy_edge = mean(1) + a*sin(theta)*cos(slope) + b*cos(theta)*sin(slope); // y coordinate of the edge of the ellipse
+        double d_edge = sqrt(pow(dx_edge-mean(0),2) + pow(dy_edge-mean(1),2)); // distance between the edge of the ellipse and the mean
+        double dist = sqrt(pow(sample(0)-mean(0),2) + pow(sample(1)-mean(1),2)); // distance between the sample and the mean
+        if (dist > d_edge)
+        {
+            // std::cout << "===================================\n";
+            // std::cout << "Outlier detected!!\n";
+            // std::cout << "===================================\n";
+            return true;
+        } else
+        {
+            return false;
+        }
+    }
 }
 
 
