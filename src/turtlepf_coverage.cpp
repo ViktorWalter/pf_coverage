@@ -66,8 +66,8 @@ using namespace std::chrono_literals;
 using std::placeholders::_1;
 
 //Robots parameters ------------------------------------------------------
-const double MAX_ANG_VEL = 0.5;
-const double MAX_LIN_VEL = 0.3;         //set to turtlebot max velocities
+const double MAX_ANG_VEL = 0.2;
+const double MAX_LIN_VEL = 0.2;         //set to turtlebot max velocities
 const double b = 0.025;                 //for differential drive control (only if we are moving a differential drive robot (e.g. turtlebot))
 //------------------------------------------------------------------------
 const bool centralized_centroids = false;   //compute centroids using centralized computed voronoi diagram
@@ -94,7 +94,7 @@ public:
     Controller() : Node("pf_coverage")
     {
         //------------------------------------------------- ROS parameters ---------------------------------------------------------
-        this->declare_parameter<int>("ROBOTS_NUM", 4);
+        this->declare_parameter<int>("ROBOTS_NUM", 3);
         this->get_parameter("ROBOTS_NUM", ROBOTS_NUM);
 
         // ID of the controlled robot
@@ -106,7 +106,7 @@ public:
         this->get_parameter("MODE", MODE);
 
         //Range di percezione singolo robot (= metà lato box locale)
-        this->declare_parameter<double>("ROBOT_RANGE", 15.0);
+        this->declare_parameter<double>("ROBOT_RANGE", 3.0);
         this->get_parameter("ROBOT_RANGE", ROBOT_RANGE);
         this->declare_parameter<double>("ROBOT_FOV", 120.0);
         this->get_parameter("ROBOT_FOV", ROBOT_FOV);
@@ -120,13 +120,13 @@ public:
         this->get_parameter("GRAPHICS_ON", GRAPHICS_ON);
 
         // Area parameter
-        this->declare_parameter<double>("AREA_SIZE_x", 40);
+        this->declare_parameter<double>("AREA_SIZE_x", 4.0);
         this->get_parameter("AREA_SIZE_x", AREA_SIZE_x);
-        this->declare_parameter<double>("AREA_SIZE_y", 40);
+        this->declare_parameter<double>("AREA_SIZE_y", 4.0);
         this->get_parameter("AREA_SIZE_y", AREA_SIZE_y);
-        this->declare_parameter<double>("AREA_LEFT", -20);
+        this->declare_parameter<double>("AREA_LEFT", -1.0);
         this->get_parameter("AREA_LEFT", AREA_LEFT);
-        this->declare_parameter<double>("AREA_BOTTOM", -20);
+        this->declare_parameter<double>("AREA_BOTTOM", -1.5);
         this->get_parameter("AREA_BOTTOM", AREA_BOTTOM);
 
         this->declare_parameter<double>("GOAL_X", -5.0);
@@ -134,25 +134,26 @@ public:
         this->declare_parameter<double>("GOAL_Y", 5.0);
         this->get_parameter("GOAL_Y", GOAL_Y);
 
-
+        this->declare_parameter<bool>("SAVE_POS", false);
+        this->get_parameter("SAVE_POS", SAVE_POS);
 
         
 
     //--------------------------------------------------- Subscribers and Publishers ----------------------------------------------------
     for (int i = 0; i < ROBOTS_NUM; i++)
     {   
-        realposeSub_.push_back(this->create_subscription<nav_msgs::msg::Odometry>("/turtlebot" + std::to_string(i) + "/odom", 100, [this, i](nav_msgs::msg::Odometry::SharedPtr msg) {this->realposeCallback(msg,i);}));
+        realposeSub_.push_back(this->create_subscription<geometry_msgs::msg::PoseStamped>("/vrpn_client_node/turtle" + std::to_string(i) + "/pose", 100, [this, i](geometry_msgs::msg::PoseStamped::SharedPtr msg) {this->realposeCallback(msg,i);}));
     }
     
-    odomSub_ = this->create_subscription<nav_msgs::msg::Odometry>("/turtlebot" + std::to_string(ROBOT_ID) + "/odom", 1, std::bind(&Controller::odomCallback, this, _1));
+    odomSub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>("/vrpn_client_node/turtle" + std::to_string(ROBOT_ID) + "/pose", 1, std::bind(&Controller::odomCallback, this, _1));
     neighSub_ = this->create_subscription<geometry_msgs::msg::PoseArray>("/supervisor/robot" + std::to_string(ROBOT_ID) + "/pose", 1, std::bind(&Controller::neighCallback, this, _1));
     joySub_ = this->create_subscription<geometry_msgs::msg::Twist>("/cmd_vel", 1, std::bind(&Controller::joy_callback, this, _1));
     gmmSub_ = this->create_subscription<turtlebot3_msgs::msg::GMM>("/gaussian_mixture_model", 1, std::bind(&Controller::gmm_callback, this, _1));
-    velPub_.push_back(this->create_publisher<geometry_msgs::msg::Twist>("/turtlebot" + std::to_string(ROBOT_ID) + "/cmd_vel", 1));
+    velPub_.push_back(this->create_publisher<geometry_msgs::msg::Twist>("/turtle" + std::to_string(ROBOT_ID) + "/cmd_vel", 1));
     // voronoiPub = this->create_publisher<geometry_msgs::msg::PolygonStamped>("/voronoi"+std::to_string(ID)+"_diagram", 1);
     if (MODE == 0)
     {
-        timer_ = this->create_wall_timer(500ms, std::bind(&Controller::pf_coverage, this));
+        timer_ = this->create_wall_timer(250ms, std::bind(&Controller::pf_coverage, this));
     } else if (MODE == 1)
     {
         timer_ = this->create_wall_timer(500ms, std::bind(&Controller::pf_milling, this));
@@ -169,7 +170,7 @@ public:
     realpose_y = Eigen::VectorXd::Zero(ROBOTS_NUM);
     realpose_theta = Eigen::VectorXd::Zero(ROBOTS_NUM);
     GAUSSIAN_MEAN_PT.resize(2);
-    GAUSSIAN_MEAN_PT << 10.0, 10.0;                       // Gaussian mean point
+    GAUSSIAN_MEAN_PT << 1.5, 0.75;                       // Gaussian mean point
     time(&this->timer_init_count);
     time(&this->timer_final_count);
 
@@ -205,19 +206,30 @@ public:
         app_gui.reset(new Graphics{AREA_SIZE_x, AREA_SIZE_y, AREA_LEFT, AREA_BOTTOM, 2.0});
     }
 
+    if(SAVE_POS)
+        {
+            open_log_file();
+        }
+
     // std::cout << "Input : " << filter->getInput().transpose() << std::endl;
     }
     ~Controller()
     {
         if ((GRAPHICS_ON) && (this->app_gui->isOpen())){this->app_gui->close();}
+        if(SAVE_POS)
+        {
+            close_log_file();
+            std::cout << "SINGLE ROBOT LOG FILE HAS BEEN CLOSED" << std::endl;
+        }
         std::cout<<"DESTROYER HAS BEEN CALLED"<<std::endl;
+
     }
 
     //void stop(int signum);
     void stop();
     void test_print();
-    void realposeCallback(const nav_msgs::msg::Odometry::SharedPtr msg, int i);
-    void odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg);
+    void realposeCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg, int i);
+    void odomCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg);
     void neighCallback(const geometry_msgs::msg::PoseArray::SharedPtr msg);
     void joy_callback(const geometry_msgs::msg::Twist::SharedPtr msg);
     void gmm_callback(const turtlebot3_msgs::msg::GMM::SharedPtr msg);
@@ -234,9 +246,13 @@ public:
     Eigen::VectorXd initCovariance = 0.001*Eigen::VectorXd::Ones(3);
     int PARTICLES_NUM = 100;
     const std::size_t num_clusters = 1;
-    double SAFETY_DIST = 0.25;
+    double SAFETY_DIST = 0.15;
     // ParticleFilter *global_filter = new ParticleFilter(3*PARTICLES_NUM, start, initCovariance);
 
+    //open write and close LOG file
+    void open_log_file();
+    void write_log_file(std::string text);
+    void close_log_file();
     
     
 
@@ -248,6 +264,7 @@ private:
     int ROBOT_ID;
     double ROBOT_FOV;
     int MODE;
+    bool SAVE_POS;
     double GOAL_X, GOAL_Y;
     // int PARTICLES_NUM;
     std::vector<bool> got_gmm;
@@ -270,11 +287,11 @@ private:
 
     //------------------------- Publishers and subscribers ------------------------------
     std::vector<rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr> velPub_;
-    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odomSub_;
+    rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr odomSub_;
     rclcpp::Subscription<geometry_msgs::msg::PoseArray>::SharedPtr neighSub_;
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr joySub_;
     rclcpp::Subscription<turtlebot3_msgs::msg::GMM>::SharedPtr gmmSub_;
-    std::vector<rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr> realposeSub_;
+    std::vector<rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr> realposeSub_;
     // rclcpp::Publisher<geometry_msgs::msg::PolygonStamped>::SharedPtr voronoiPub;
     rclcpp::TimerBase::SharedPtr timer_;
     turtlebot3_msgs::msg::GMM gmm_msg;
@@ -324,7 +341,48 @@ private:
 
     // gauss::gmm::GaussianMixtureModel gmm_;
 
+    //ofstream on external log file
+    std::ofstream log_file;
+    long unsigned int log_line_counter=0;
+
 };
+
+void Controller::open_log_file()
+{
+    std::time_t t = time(0);
+    struct tm * now = localtime(&t);
+    char buffer [80];
+
+    char *dir = get_current_dir_name();
+    std::string dir_str(dir);
+    dir_str = dir_str + "/pf_logs" + std::to_string(ROBOT_ID);
+
+    if (IsPathExist(dir_str))     //check if the folder exists
+    {
+        strftime (buffer,80,"/%Y_%m_%d_%H-%M_logfile.txt",now);
+    } else {
+        system(("mkdir " + (dir_str)).c_str());
+        strftime (buffer,80,"/%Y_%m_%d_%H-%M_logfile.txt",now);
+    }
+
+    std::cout<<"file name :: "<<dir_str + buffer<<std::endl;
+    this->log_file.open(dir_str + buffer,std::ofstream::app);
+}
+
+void Controller::write_log_file(std::string text)
+{
+    if (this->log_file.is_open())
+    {
+        std::cout << text;
+        this->log_file << text;
+    }
+}
+
+void Controller::close_log_file()
+{
+    std::cout<<"Log file is being closed"<<std::endl;
+    this->log_file.close();
+}
 
 bool Controller::insideFOV(Eigen::VectorXd q, Eigen::VectorXd q_obs, double fov, double r_sens)
 {
@@ -388,12 +446,18 @@ void Controller::pf_coverage()
     auto timerstart = this->get_clock()->now().nanoseconds();
     Eigen::VectorXd u(2);
     u << 0.5, 0.5;
-    Eigen::VectorXd processCovariance = 0.1*Eigen::VectorXd::Ones(3);
+    Eigen::VectorXd processCovariance = 0.01*Eigen::VectorXd::Ones(3);
     Eigen::VectorXd robot(3);                           // controlled robot's global position
     robot << this->pose_x(ROBOT_ID), this->pose_y(ROBOT_ID), this->pose_theta(ROBOT_ID);
     std::vector<Eigen::VectorXd> total_samples;                                       // samples from the filter
     std::vector<Eigen::VectorXd> mean_points;
     std::vector<double> distances;
+
+    if (SAVE_POS)
+    {
+        std::string txt = std::to_string(ROBOT_ID) + " " + std::to_string(this->pose_x(ROBOT_ID)) + " " + std::to_string(this->pose_y(ROBOT_ID)) + " " + std::to_string(this->pose_theta(ROBOT_ID)) + "\n";
+        write_log_file(txt);
+    }
 
     for (int j = 0; j < ROBOTS_NUM; j++)
     {
@@ -415,6 +479,12 @@ void Controller::pf_coverage()
                 justLost[c] = true;
                 this->got_gmm[c] = false;
                 mean_points.push_back(p_j.col(j));
+
+                if (SAVE_POS)
+                {
+                    std::string txt = std::to_string(j) + " " + std::to_string(this->pose_x(j)) + " " + std::to_string(this->pose_y(j)) + " " + std::to_string(this->pose_theta(j)) + "\n";
+                    write_log_file(txt);
+                }
                 
             } else
             {
@@ -528,7 +598,7 @@ void Controller::pf_coverage()
     // Get detected or estimated position of neighbors in local coordinates
     Box<double> AreaBox{AREA_LEFT, AREA_BOTTOM, AREA_SIZE_x + AREA_LEFT, AREA_SIZE_y + AREA_BOTTOM};
     Box<double> RangeBox{-ROBOT_RANGE, -ROBOT_RANGE, ROBOT_RANGE, ROBOT_RANGE};
-    std::vector<double> VARs = {2.0};
+    std::vector<double> VARs = {0.5};
     std::vector<Vector2<double>> MEANs = {{GAUSSIAN_MEAN_PT(0), GAUSSIAN_MEAN_PT(1)}};
     double vel_x=0, vel_y=0;
 
@@ -555,8 +625,10 @@ void Controller::pf_coverage()
 
     if (centroid.getNorm() > CONVERGENCE_TOLERANCE)
     {
-        vel_x = 0.8*(centroid.x);
-        vel_y = 0.8*(centroid.y);
+        // vel_x = this->pose_theta[ROBOT_ID] * 0.8*centroid.x + this->pose_theta[ROBOT_ID] * 0.8*centroid.y;
+        // vel_y = -this->pose_theta[ROBOT_ID] * 0.8*centroid.x + this->pose_theta[ROBOT_ID] * 0.8*centroid.y;
+        vel_x = 0.8*centroid.x;
+        vel_y = 0.8*centroid.y;
     } else {
         vel_x = 0;
         vel_y = 0;
@@ -619,7 +691,6 @@ void Controller::pf_coverage()
         this->app_gui->drawDiagram(diagram_centr);
         this->app_gui->drawPoint(centroid_global, sf::Color(0,255,255));
 
-
         for (int i = 0; i < mean_points.size(); i++)
         {
             this->app_gui->drawPoint(mean_points[i], sf::Color(0,0,255));
@@ -638,7 +709,7 @@ void Controller::pf_coverage()
                     // s = 4.605 for 90% confidence interval
                     // s = 5.991 for 95% confidence interval
                     // s = 9.210 for 99% confidence interval
-                    double s = 4.605;
+                    double s = 5.991;
                     double a = sqrt(s*eigenvalues(0));            // major axis
                     double b = sqrt(s*eigenvalues(1));            // minor axis
 
@@ -661,6 +732,11 @@ void Controller::pf_coverage()
                     double theta = atan2(eigenvectors(1,m), eigenvectors(0,m));             // angle of the major axis wrt positive x-asis (ccw rotation)
                     if (theta < 0.0) {theta += M_PI;}                                    // angle in [0, 2pi
                     this->app_gui->drawEllipse(mean_points[i], a, b, theta);
+                    if(SAVE_POS)
+                    {
+                        std::string txt = "\t" + std::to_string(mean_points[i](0)) + " " + std::to_string(mean_points[i](1)) + " " + std::to_string(a) + " " + std::to_string(b) + " " + std::to_string(theta) + "\n";
+                        write_log_file(txt);
+                    }
 
                     double slope = atan2(-mean_points[i](1) + this->pose_y(ROBOT_ID), -mean_points[i](0) + this->pose_x(ROBOT_ID));
                     // slope += theta;
@@ -1096,21 +1172,21 @@ void Controller::stop()
 
     RCLCPP_INFO_STREAM(this->get_logger(), "controller has been closed and robots have been stopped");
     rclcpp::sleep_for(100000000ns);
-    // this->close_log_file();
+    this->close_log_file();
     // this->close_gauss_file();
     // this->close_k_file();
 }
 
-void Controller::realposeCallback(const nav_msgs::msg::Odometry::SharedPtr msg, int i)
+void Controller::realposeCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg, int i)
 {
-    this->realpose_x(i) = msg->pose.pose.position.x;
-    this->realpose_y(i) = msg->pose.pose.position.y;
+    this->realpose_x(i) = msg->pose.position.x;
+    this->realpose_y(i) = msg->pose.position.y;
     
     tf2::Quaternion q(
-    msg->pose.pose.orientation.x,
-    msg->pose.pose.orientation.y,
-    msg->pose.pose.orientation.z,
-    msg->pose.pose.orientation.w);
+    msg->pose.orientation.x,
+    msg->pose.orientation.y,
+    msg->pose.orientation.z,
+    msg->pose.orientation.w);
     tf2::Matrix3x3 m(q);
     double roll, pitch, yaw;
     m.getRPY(roll, pitch, yaw);
@@ -1118,21 +1194,23 @@ void Controller::realposeCallback(const nav_msgs::msg::Odometry::SharedPtr msg, 
     this->realpose_theta(i) = yaw;
 }
 
-void Controller::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
+void Controller::odomCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
 {
-    this->pose_x(ROBOT_ID) = msg->pose.pose.position.x;
-    this->pose_y(ROBOT_ID) = msg->pose.pose.position.y;
+    this->pose_x(ROBOT_ID) = msg->pose.position.x;
+    this->pose_y(ROBOT_ID) = msg->pose.position.y;
 
     tf2::Quaternion q(
-    msg->pose.pose.orientation.x,
-    msg->pose.pose.orientation.y,
-    msg->pose.pose.orientation.z,
-    msg->pose.pose.orientation.w);
+    msg->pose.orientation.x,
+    msg->pose.orientation.y,
+    msg->pose.orientation.z,
+    msg->pose.orientation.w);
     tf2::Matrix3x3 m(q);
     double roll, pitch, yaw;
     m.getRPY(roll, pitch, yaw);
 
     this->pose_theta(ROBOT_ID) = yaw;
+
+    // std::cout << "Robot " << ROBOT_ID << " position: " << this->pose_x(ROBOT_ID) << ", " << this->pose_y(ROBOT_ID) << ", " << this->pose_theta(ROBOT_ID) << "\n";
 }
 
 void Controller::neighCallback(const geometry_msgs::msg::PoseArray::SharedPtr msg)
@@ -1178,7 +1256,7 @@ void Controller::neighCallback(const geometry_msgs::msg::PoseArray::SharedPtr ms
 Eigen::VectorXd Controller::predictVelocity(Eigen::VectorXd q, Eigen::VectorXd goal)
 {
     Eigen::VectorXd u(2);
-    double K_gain = 1.0;
+    double K_gain = 0.5;
     u(0) = K_gain * (goal(0) - q(0));
     u(1) = K_gain * (goal(1) - q(1));
 
@@ -1255,6 +1333,18 @@ geometry_msgs::msg::Twist Controller::Diff_drive_compute_vel(double vel_x, doubl
             vel_msg.linear.x = -MAX_LIN_VEL;
         }
     }
+
+    // // Make robot only move forward!  
+    // if (v >= 0.0 && v <= MAX_LIN_VEL)
+    // {
+    //     vel_msg.linear.x = v;
+    // } else if (v > MAX_LIN_VEL)
+    // {
+    //     vel_msg.linear.x = MAX_LIN_VEL;
+    // } else
+    // {
+    //     vel_msg.linear.x = 0.0;
+    // }
 
     if (abs(w) <= MAX_ANG_VEL)
     {

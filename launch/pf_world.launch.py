@@ -35,7 +35,7 @@ TURTLEBOT3_MODEL = os.environ['TURTLEBOT3_MODEL']
 def generate_launch_description():
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
     launch_file_dir = os.path.join(get_package_share_directory('gazebo_ros'), 'launch')
-    robots_NUM = 8
+    robots_NUM = 4
     launch_list = []
 
     gazebo = IncludeLaunchDescription(
@@ -54,14 +54,14 @@ def generate_launch_description():
     launch_list.append(vision)
 
 
-    # x_pos = [-2, -3, 2, 2]
-    # y_pos = [-2, 4, 1, 2]
-    # theta = [0.25 * 3.14, 0, 0, 0]
+    x_pos = [-1, 1, 1, -1]
+    y_pos = [-1, -1, 1, 1]
+    theta = [0.25 * 3.14, 0.75 * 3.14, 1.25 * 3.14, 1.75 * 3.14]
 
-    x_pos = [-4.0, 4.0, 4.0, -4.0, -6.0, 6.0, 0.0, 0.0]
-    y_pos = [-4.0, -4.0, 4.0, 4.0, 0.0, 0.0, -6.0, 6.0]
-    # theta = 0.25 * 3.14
-    theta = [0.25*3.14, 0.75*3.14, 1.25*3.14, 1.75*3.14, 0.0, -3.14, 0.5*3.14, -0.5*3.14]
+    # x_pos = [-4.0, 4.0, 4.0, -4.0, -6.0, 6.0, 0.0, 0.0]
+    # y_pos = [-4.0, -4.0, 4.0, 4.0, 0.0, 0.0, -6.0, 6.0]
+    # # theta = 0.25 * 3.14
+    # theta = [0.25*3.14, 0.75*3.14, 1.25*3.14, 1.75*3.14, 0.0, -3.14, 0.5*3.14, -0.5*3.14]
 
     # x_pos = []
     # y_pos = []

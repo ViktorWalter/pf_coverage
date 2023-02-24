@@ -80,6 +80,14 @@ add_executable(coverage_distributed_singlenode src/coverage_distributed_singleno
 target_link_libraries(coverage_distributed_singlenode ${SFML_libraries})
 ament_target_dependencies(coverage_distributed_singlenode ${dependencies})
 
+add_executable(turtlebot_supervisor src/turtlebot_supervisor.cpp )
+# target_link_libraries(turtlebot_supervisor ${SFML_libraries})
+ament_target_dependencies(turtlebot_supervisor ${dependencies})
+
+add_executable(turtlepf_coverage src/turtlepf_coverage.cpp )
+target_link_libraries(turtlepf_coverage ${SFML_libraries})
+ament_target_dependencies(turtlepf_coverage ${dependencies})
+
 
 
 ################################################################################
@@ -91,6 +99,8 @@ install(TARGETS
   vision_emulator
   coverage_distributed_neighmaster
   coverage_distributed_singlenode
+  turtlebot_supervisor
+  turtlepf_coverage
   DESTINATION lib/${PROJECT_NAME}
 )
 
