@@ -29,6 +29,7 @@ find_package(particle_filter REQUIRED)
 find_package(GaussianMixtureModel REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(SFML REQUIRED COMPONENTS graphics window system)
+# find_package(std_srvs REQUIRED)
 
 ################################################################################
 # Build
@@ -88,7 +89,8 @@ add_executable(turtlepf_coverage src/turtlepf_coverage.cpp )
 target_link_libraries(turtlepf_coverage ${SFML_libraries})
 ament_target_dependencies(turtlepf_coverage ${dependencies})
 
-
+add_executable(turtlebot_fakepose src/turtlebot_fakepose.cpp )
+ament_target_dependencies(turtlebot_fakepose ${dependencies})
 
 ################################################################################
 # Install
@@ -101,6 +103,7 @@ install(TARGETS
   coverage_distributed_singlenode
   turtlebot_supervisor
   turtlepf_coverage
+  turtlebot_fakepose
   DESTINATION lib/${PROJECT_NAME}
 )
 
