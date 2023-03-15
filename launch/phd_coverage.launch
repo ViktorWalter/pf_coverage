@@ -11,7 +11,7 @@
     <param name="GRAPHICS_ON" type="bool" value="true" />
 
 
-    <node name="pf_coverage_0"  pkg="pf_coverage" type="pf_coverage" output="screen" ns="hummingbird0">
+    <node name="phd_coverage_0"  pkg="pf_coverage" type="phd_coverage" output="screen" ns="hummingbird0">
         <rosparam>
             MODE: 0
             ROBOTS_NUM: 6
@@ -30,7 +30,7 @@
         </rosparam>
     </node>
 
-    <node name="pf_coverage_1"  pkg="pf_coverage" type="pf_coverage" output="screen" ns="hummingbird1">
+    <node name="phd_coverage_1"  pkg="pf_coverage" type="phd_coverage" output="screen" ns="hummingbird1">
         <rosparam>
             MODE: 0
             ROBOTS_NUM: 6
@@ -49,7 +49,7 @@
         </rosparam>
     </node>
 
-    <node name="pf_coverage_2"  pkg="pf_coverage" type="pf_coverage" output="screen" ns="hummingbird2">
+    <node name="phd_coverage_2"  pkg="pf_coverage" type="phd_coverage" output="screen" ns="hummingbird2">
         <rosparam>
             MODE: 0
             ROBOTS_NUM: 6
@@ -68,7 +68,7 @@
         </rosparam>
     </node>
 
-    <node name="pf_coverage_3"  pkg="pf_coverage" type="pf_coverage" output="screen" ns="hummingbird3">
+    <node name="phd_coverage_3"  pkg="pf_coverage" type="phd_coverage" output="screen" ns="hummingbird3">
         <rosparam>
             MODE: 0
             ROBOTS_NUM: 6
@@ -87,7 +87,7 @@
         </rosparam>
     </node>
 
-    <node name="pf_coverage_4"  pkg="pf_coverage" type="pf_coverage" output="screen" ns="hummingbird4">
+    <node name="pf_coverage_4"  pkg="pf_coverage" type="phd_coverage" output="screen" ns="hummingbird4">
         <rosparam>
             MODE: 0
             ROBOTS_NUM: 6
@@ -106,7 +106,7 @@
         </rosparam>
     </node>
 
-    <node name="pf_coverage_5"  pkg="pf_coverage" type="pf_coverage" output="screen" ns="hummingbird5">
+    <node name="phd_coverage_5"  pkg="pf_coverage" type="phd_coverage" output="screen" ns="hummingbird5">
         <rosparam>
             MODE: 0
             ROBOTS_NUM: 6

@@ -8,6 +8,9 @@
 #include <SFML/OpenGL.hpp>
 #include <SFML/Window/Mouse.hpp>
 #include <SFML/Window.hpp>
+#include <SFML/Graphics/Text.hpp>
+#include <SFML/Graphics/Font.hpp>
+#include <SFML/System/String.hpp>
 // My includes
 #include "Voronoi.h"
 #include "Vettore.h"
@@ -546,6 +549,42 @@ public:
             Vector2<double> vf = {x + a * cos(phi + 0.1) * cos(th) - b * sin(phi + 0.1) * sin(th), y + a * cos(phi + 0.1) * sin(th) + b * sin(phi + 0.1) * cos(th)};
             drawEdge_global(vs, vf, sf::Color(102,255,255));
         }
+    }
+
+    // Write robot's id
+    void drawID(Eigen::VectorXd p, int id, sf::Color color = sf::Color(255,0,0))
+    {
+        double size = 30;
+        sf::Font font;
+        sf::Text text;
+        font.loadFromFile("/usr/share/gazebo-11/media/fonts/arial.ttf");
+        text.setFont(font);
+        text.setString(std::to_string(id));
+        text.setCharacterSize(size);
+        text.setScale(0.1, 0.1);
+        text.setFillColor(color);
+        text.setOutlineColor(sf::Color::Black);
+        // text.setStyle(sf::Text::Bold);
+        text.setPosition(p(0), AREA_SIZE_y - p(1));
+        this->window->draw(text);
+    }
+
+    template<typename T>
+    void drawID(Vector2<T> site, int id, sf::Color color = sf::Color(255,0,0))
+    {
+        double size = 30;
+        sf::Font font;
+        sf::Text text;
+        font.loadFromFile("/usr/share/gazebo-11/media/fonts/arial.ttf");
+        text.setFont(font);
+        text.setString(std::to_string(id));
+        text.setCharacterSize(size);
+        text.setScale(0.1, 0.1);
+        text.setFillColor(color);
+        text.setOutlineColor(sf::Color::Black);
+        // text.setStyle(sf::Text::Bold);
+        text.setPosition(site.x, AREA_SIZE_y - site.y);
+        this->window->draw(text);
     }
 
     bool isOpen(){

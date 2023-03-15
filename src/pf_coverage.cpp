@@ -43,6 +43,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/PoseArray.h>
 #include <nav_msgs/Odometry.h>
+#include <std_srvs/Empty.h>
 // #include "kalman_filter/kalman_filter.h"
 // #include "kalman_filter/extended_kalman_filter.h"
 #include "particle_filter/particle_filter.h"
@@ -125,6 +126,7 @@ public:
     neighSub_ = nh_.subscribe<geometry_msgs::PoseArray>("/supervisor/robot" + std::to_string(ROBOT_ID) + "/pose", 1, std::bind(&Controller::neighCallback, this, std::placeholders::_1));
     joySub_ = nh_.subscribe<geometry_msgs::Twist>("/cmd_vel", 1, std::bind(&Controller::joy_callback, this, std::placeholders::_1));
     velPub_.push_back(nh_.advertise<geometry_msgs::TwistStamped>("/hummingbird" + std::to_string(ROBOT_ID) + "/autopilot/velocity_command", 1));
+    service = nh_.advertiseService("change_goal", &Controller::changeGoal, this);
     if (MODE == 0)
     {
         timer_ = nh_.createTimer(ros::Duration(0.2), std::bind(&Controller::pf_coverage, this));
@@ -200,6 +202,7 @@ public:
     void pf_coverage();
     void pf_milling();
     void save_distribution(std::vector<gauss::gmm::GaussianMixtureModel*> mix_models);
+    bool changeGoal(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
     void coverage();
     bool insideFOV(Eigen::VectorXd q, Eigen::VectorXd q_obs, double fov, double r_sens);
     bool is_outlier(Eigen::VectorXd q, Eigen::VectorXd mean, Eigen::MatrixXd cov_matrix, double threshold);
@@ -256,6 +259,7 @@ private:
     ros::Subscriber neighSub_;
     ros::Subscriber joySub_;
     std::vector<ros::Subscriber> realposeSub_;
+    ros::ServiceServer service;
     // rclcpp::Publisher<geometry_msgs::PolygonStamped>::ConstPtr voronoiPub;
     ros::Timer timer_;
 
@@ -360,6 +364,36 @@ Eigen::VectorXd Controller::getWheelVelocity(Eigen::VectorXd u, double alpha)
     return u_final;
 }
 
+bool Controller::changeGoal(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
+{
+    if ((GOAL_X >= 0.0) && (GOAL_Y >= 0.0))
+    {
+        GOAL_X = -GOAL_X;
+        GOAL_Y = GOAL_Y;
+        std::cout << "Goal changed to: " << GOAL_X << ", " << GOAL_Y << std::endl;
+    }
+    else if ((GOAL_X < 0.0) && (GOAL_Y >= 0.0))
+    {
+        GOAL_X = GOAL_X;
+        GOAL_Y = -GOAL_Y;
+        std::cout << "Goal changed to: " << GOAL_X << ", " << GOAL_Y << std::endl;
+    }
+    else if ((GOAL_X < 0.0) && (GOAL_Y < 0.0))
+    {
+        GOAL_X = -GOAL_X;
+        GOAL_Y = GOAL_Y;
+        std::cout << "Goal changed to: " << GOAL_X << ", " << GOAL_Y << std::endl;
+    }
+    else
+    {
+        GOAL_X = GOAL_X;
+        GOAL_Y = -GOAL_Y;
+        std::cout << "Goal changed to: " << GOAL_X << ", " << GOAL_Y << std::endl;
+    }
+
+    return true;
+
+}
 
 void Controller::pf_coverage()
 {
@@ -584,7 +618,7 @@ void Controller::pf_coverage()
             n.x = this->realpose_x(i);
             n.y = this->realpose_y(i);
             this->app_gui->drawPoint(n, color);
-            
+            // this->app_gui->drawID(n, i, color);
         }
 
         // this->app_gui->drawPoint(me);
