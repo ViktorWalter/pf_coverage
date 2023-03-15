@@ -34,8 +34,8 @@ RUN cd src/ ; git clone https://github.com/ARSControl/gaussian_mixture_model.git
 
 # Build the workspace
 RUN apt-get update \
-  && rosdep update \
-  && rosdep install --from-paths src -iy \
+  # && rosdep update \
+  # && rosdep install --from-paths src -iy \
   && rm -rf /var/lib/apt/lists/*
 RUN catkin config --extend /opt/ros/noetic && catkin build --no-status
 
