@@ -24,12 +24,12 @@ RUN git config --global color.ui true
 
 # Get packages for building
 WORKDIR /catkin_ws
-RUN cd ~/catkin_ws ; mkdir src
-RUN cd ~/catkin_ws/src/ ; git clone https://github.com/MatCat960/pf_coverage.git
-RUN cd ~/catkin_ws/src/pf_coverage ; git checkout docker-devel
-RUN cd ~/catkin_ws/src/ ; git clone https://github.com/MatCat960/particle_filter.git
-RUN cd ~/catkin_ws/src/particle_filter ; git checkout ros1-noetic
-RUN cd ~/catkin_ws/src/ ; git clone https://github.com/ARSControl/gaussian_mixture_model.git
+RUN mkdir src
+RUN cd src/ ; git clone https://github.com/MatCat960/pf_coverage.git
+RUN cd src/pf_coverage ; git checkout docker-devel
+RUN cd src/ ; git clone https://github.com/MatCat960/particle_filter.git
+RUN cd src/particle_filter ; git checkout ros1-noetic
+RUN cd src/ ; git clone https://github.com/ARSControl/gaussian_mixture_model.git
 
 
 # Build the workspace
