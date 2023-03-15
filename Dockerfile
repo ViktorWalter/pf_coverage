@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y python3-catkin-tools tmux \
   && rm -rf /var/lib/apt/lists/*
 
 # Git requirements
-RUN apt-get install -y git
+RUN apt-get install -y git-all
 RUN git config --global user.name "Mattia Catellani"
 RUN git config --global user.email "215802@studenti.unimore.it"
 RUN git config --global color.ui true
