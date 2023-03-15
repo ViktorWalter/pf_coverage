@@ -3,12 +3,12 @@ name: Docker
 on:
   push:
     branches:
-      - docker-devel
+      - master
     tags:
       - '*'
   pull_request:
     branches:
-      - docker-devel
+      - master
   workflow_dispatch:
       
 env:
