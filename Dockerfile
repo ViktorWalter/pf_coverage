@@ -2,7 +2,7 @@ FROM ros:noetic
 
 # Install some basic dependencies
 RUN apt-get update && apt-get -y upgrade && apt-get -y install \
-  curl ssh python3-pip \
+  curl ssh python3-pip git\
   && rm -rf /var/lib/apt/lists/*
 
 # Set root password
@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y python3-catkin-tools tmux \
   && rm -rf /var/lib/apt/lists/*
 
 # Git requirements
-RUN apt-get install -y git-all
+# RUN apt-get install -y git-all
 RUN git config --global user.name "Mattia Catellani"
 RUN git config --global user.email "215802@studenti.unimore.it"
 RUN git config --global color.ui true
