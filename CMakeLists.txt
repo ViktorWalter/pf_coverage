@@ -19,6 +19,7 @@ find_package(catkin REQUIRED COMPONENTS
 find_package(SFML REQUIRED COMPONENTS graphics window system)
 find_package(GaussianMixtureModel REQUIRED)
 find_package(particle_filter REQUIRED)
+find_package(gaussian_mixture_model REQUIRED)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -127,6 +128,7 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
   ${particle_filter_INCLUDE_DIRS}
   ${GaussianMixtureModel_INCLUDE_DIRS}
+  ${gaussian_mixture_model_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
@@ -145,6 +147,7 @@ set(dependencies
   "particle_filter"
   "GaussianMixtureModel"
   "visualization_msgs"
+  "gaussian_mixture_model"
 )
 
 set(SFML_libraries
@@ -161,7 +164,7 @@ set(SFML_libraries
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-add_executable(pf_coverage src/pf_coverage.cpp)
+# add_executable(pf_coverage src/pf_coverage.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -171,7 +174,7 @@ add_executable(pf_coverage src/pf_coverage.cpp)
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
-add_dependencies(pf_coverage ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+# add_dependencies(pf_coverage ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(pf_coverage
@@ -179,6 +182,44 @@ target_link_libraries(pf_coverage
   ${particle_filter_LIBRARIES}
   ${GaussianMixtureModel_LIBRARIES}
   ${SFML_libraries}
+)
+
+
+add_executable(crazypf_coverage src/crazypf_coverage.cpp)
+add_dependencies(crazypf_coverage ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(crazypf_coverage
+  ${catkin_LIBRARIES}
+  ${particle_filter_LIBRARIES}
+  ${GaussianMixtureModel_LIBRARIES}
+  ${SFML_libraries}
+)
+
+add_executable(takeoff_node src/takeoff_node.cpp)
+add_dependencies(takeoff_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(takeoff_node
+  ${catkin_LIBRARIES}
+)
+
+add_executable(land_node src/land_node.cpp)
+add_dependencies(land_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(land_node
+  ${catkin_LIBRARIES}
+)
+
+add_executable(goal_trigger src/goalTrigger.cpp)
+add_dependencies(goal_trigger ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(goal_trigger
+  ${catkin_LIBRARIES}
+)
+
+add_executable(phd_coverage src/phd_coverage.cpp)
+add_dependencies(phd_coverage ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(phd_coverage
+  ${catkin_LIBRARIES}
+  ${particle_filter_LIBRARIES}
+  # ${GaussianMixtureModel_LIBRARIES}
+  ${SFML_libraries}
+  ${gaussian_mixture_model_LIBRARIES}
 )
 
 #############
