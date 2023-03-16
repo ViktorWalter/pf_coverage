@@ -30,7 +30,7 @@ RUN git config --global color.ui true
 # RUN echo $(ls /usr/include)
 RUN cd /usr/include ; ln -sf eigen3/Eigen Eigen
 
-RUN apt-get install ros-noetic-tf2
+RUN apt-get install ros-noetic-tf2-ros
 
 
 # Get packages for building
