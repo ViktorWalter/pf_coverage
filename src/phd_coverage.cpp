@@ -54,6 +54,7 @@
 #include <GaussianMixtureModel/GaussianMixtureModelFactory.h>
 
 #include <gaussian_mixture_model/gaussian_mixture_model.h>
+#include <safety_control/SafetyController.h>
 
 
 
@@ -88,7 +89,7 @@ class Controller
 {
 
 public:
-    Controller() : nh_priv_("~"), gmm_()
+    Controller() : nh_priv_("~"), gmm_(), safety_controller(2.0, ROBOTS_NUM-1)
     {
         //------------------------------------------------- ROS parameters ---------------------------------------------------------
         this->nh_priv_.getParam("ROBOTS_NUM", ROBOTS_NUM);
@@ -127,7 +128,7 @@ public:
     
     odomSub_ = nh_.subscribe<nav_msgs::Odometry>("/hummingbird" + std::to_string(ROBOT_ID) + "/ground_truth/odometry", 1, std::bind(&Controller::odomCallback, this, std::placeholders::_1));
     neighSub_ = nh_.subscribe<geometry_msgs::PoseArray>("/supervisor/robot" + std::to_string(ROBOT_ID) + "/pose", 1, std::bind(&Controller::neighCallback, this, std::placeholders::_1));
-    joySub_ = nh_.subscribe<geometry_msgs::Twist>("/cmd_vel", 1, std::bind(&Controller::joy_callback, this, std::placeholders::_1));
+    joySub_ = nh_.subscribe<geometry_msgs::Twist>("/cmd_vel", 1, std::bind(&Controller::vel_callback, this, std::placeholders::_1));
     velPub_.push_back(nh_.advertise<geometry_msgs::TwistStamped>("/hummingbird" + std::to_string(ROBOT_ID) + "/autopilot/velocity_command", 1));
     timer_ = nh_.createTimer(ros::Duration(0.2), std::bind(&Controller::phd_coverage, this));
     
@@ -138,6 +139,7 @@ public:
     pose_y = Eigen::VectorXd::Zero(ROBOTS_NUM);
     pose_theta = Eigen::VectorXd::Zero(ROBOTS_NUM);
     p_j.resize(3,ROBOTS_NUM);                           // matrix with global position of neighbors on each column
+    p_j_i.resize(3, ROBOTS_NUM-1);
     realpose_x = Eigen::VectorXd::Zero(ROBOTS_NUM);
     realpose_y = Eigen::VectorXd::Zero(ROBOTS_NUM);
     realpose_theta = Eigen::VectorXd::Zero(ROBOTS_NUM);
@@ -198,6 +200,7 @@ public:
     void odomCallback(const nav_msgs::Odometry::ConstPtr msg);
     void neighCallback(const geometry_msgs::PoseArray::ConstPtr msg);
     void joy_callback(const geometry_msgs::Twist::ConstPtr msg);
+    void vel_callback(const geometry_msgs::Twist::ConstPtr &msg);
     Eigen::VectorXd Matrix_row_sum(Eigen::MatrixXd x);
     Eigen::MatrixXd Diag_Matrix(Eigen::VectorXd V);
     void phd_coverage();
@@ -219,7 +222,7 @@ private:
     int ROBOTS_NUM = 6;
     double ROBOT_RANGE = 15.0;
     int ROBOT_ID = 0;
-    double ROBOT_FOV = 150.0;
+    double ROBOT_FOV = 360.0;
     int MODE = 0;
     double GOAL_X = 10.0;
     double GOAL_Y = 10.0;
@@ -231,7 +234,7 @@ private:
     Eigen::VectorXd pose_x;
     Eigen::VectorXd pose_y;
     Eigen::VectorXd pose_theta;
-    Eigen::MatrixXd p_j;
+    Eigen::MatrixXd p_j, p_j_i;
     Eigen::VectorXd realpose_x;
     Eigen::VectorXd realpose_y;
     Eigen::VectorXd realpose_theta;
@@ -260,6 +263,11 @@ private:
     std::vector<ParticleFilter *> filters;
     // ParticleFilter filter;
     GaussianMixtureModel gmm_;
+
+    // ------------------------------- Safety Controller ---------------------------------
+    safety_control::SafetyController safety_controller;
+    Eigen::VectorXd h;
+    Eigen::Vector3d ustar;
 
     
     // std::vector<Eigen::VectorXd> total_samples;
@@ -506,8 +514,6 @@ void Controller::phd_coverage()
         std::cout << gmm_.getMeans()[i].transpose() << std::endl;
     }
 
-
-
     if ((GRAPHICS_ON) && (this->app_gui->isOpen()))
     {
         this->app_gui->clear();
@@ -534,13 +540,117 @@ void Controller::phd_coverage()
         {
             this->app_gui->drawParticles(filters[i]->getParticles());
         }
-        
-        this->app_gui->display();
     }
 
 
+    std::vector<double> distances(ROBOTS_NUM-1);
+    for (int i = 0; i < ROBOTS_NUM-1; i++)
+    {
+        if (this->got_gmm)
+        {
+            Eigen::MatrixXd cov_matrix = gmm_.getCovariances()[i];
+            if(!isinf(cov_matrix(0,0)))
+            {
+                Eigen::EigenSolver<Eigen::MatrixXd> es(cov_matrix.block<2,2>(0,0));
+                Eigen::VectorXd eigenvalues  = es.eigenvalues().real();
+                // std::cout << "Eigenvalues: \n" << eigenvalues.transpose() << "\n";
+                Eigen::MatrixXd eigenvectors = es.eigenvectors().real();
+                // std::cout << "Eigenvectors: \n" << eigenvectors.transpose() << "\n";
+                
+                // s = 4.605 for 90% confidence interval
+                // s = 5.991 for 95% confidence interval
+                // s = 9.210 for 99% confidence interval
+                double s = 4.605;
+                double a = sqrt(s*eigenvalues(0));            // major axis
+                double b = sqrt(s*eigenvalues(1));            // minor axis
+
+                // a could be smaller than b, so swap them
+                if (a < b)
+                {
+                    double temp = a;
+                    a = b;
+                    b = temp;
+                }
+
+                int m = 0;                  // higher eigenvalue index
+                int l = 1;                  // lower eigenvalue index
+                if (eigenvalues(1) > eigenvalues(0)) 
+                {
+                    m = 1;
+                    l = 0;
+                }
+
+                a *= 5.0;
+                b *= 5.0;
+                
+                double theta = atan2(eigenvectors(1,m), eigenvectors(0,m));             // angle of the major axis wrt positive x-asis (ccw rotation)
+                if (theta < 0.0) {theta += M_PI;}                                    // angle in [0, 2pi
+                if ((GRAPHICS_ON) && (this->app_gui->isOpen()))
+                {
+                    this->app_gui->drawEllipse(gmm_.getMeans()[i], a, b, theta);
+                }
+
+                double slope = atan2(-gmm_.getMeans()[i](1) + this->pose_y(ROBOT_ID), -gmm_.getMeans()[i](0) + this->pose_x(ROBOT_ID));
+                // slope += theta;
+                // double slope = 0.0;
+                // double x_n = mean_points[i](0) + a*cos(0.0);
+                // double y_n = mean_points[i](1) + b*sin(0.0);
+                double x_n = gmm_.getMeans()[i](0) + a * cos(slope - theta) * cos(theta) - b * sin(slope - theta) * sin(theta);
+                double y_n = gmm_.getMeans()[i](1) + a * cos(slope - theta) * sin(theta) + b * sin(slope - theta) * cos(theta);
+                // double x_n = gmm_.getMeans()[i](0) + eigenvectors(0,m) * a * cos(slope) + eigenvectors(0,l) * b * sin(slope);
+                // double y_n = gmm_.getMeans()[i](1) + eigenvectors(1,m) * a * cos(slope) + eigenvectors(1,l) * b * sin(slope);
+                Vector2<double> p_near = {x_n, y_n};
+
+                // std::cout << "Robot position: " << this->pose_x(ROBOT_ID) << ", " << this->pose_y(ROBOT_ID) << "\n";
+                // std::cout << "Neighbor estimate: " << gmm_.getMeans()[i](0) << ", " << gmm_.getMeans()[i](1) << "\n";
+                // std::cout << "Ellipse orientation: " << theta << "\n";
+                // std::cout << "Slope" << slope << "\n";
+                // std::cout << "Eigenvalues: " << eigenvalues(m) << ", " << eigenvalues(l) << "\n";
+
+                double dist = sqrt(pow(p_near.x - this->pose_x(ROBOT_ID), 2) + pow(p_near.y - this->pose_y(ROBOT_ID), 2));
+                std::cout << "Distance: " << dist << "\n";
+                double uncertainty = sqrt(pow(gmm_.getMeans()[i](0) - p_near.x, 2) + pow(gmm_.getMeans()[i](1) - p_near.y, 2));
+                distances[i] = uncertainty;
+
+                // Check if robot is inside ellipse
+                // double d = sqrt(pow(gmm_.getMeans()[i](0) - this->pose_x(ROBOT_ID), 2) + pow(gmm_.getMeans()[i](1) - this->pose_y(ROBOT_ID), 2));
+                // if (d < a)
+                // {
+                //     distances.push_back(0.5*SAFETY_DIST);
+                // } else
+                // {
+                //     distances.push_back(dist);
+                // }
+
+                // this->app_gui->drawPoint(p_near, sf::Color(255,0,127));
+            }
+        }
+    }
+
+    // Apply CBF
+    Eigen::Vector3d uopt;
+    geometry_msgs::TwistStamped vel_msg;
+    // vel_msg.header.frame_id = "/hummingbird" + std::to_string(ROBOT_ID) + "/base_link";
+    if(!safety_controller.applyCbfLocal(uopt,h,ustar,p_j_i,distances))
+        {        
+            vel_msg.twist.linear.x = uopt(0);
+            vel_msg.twist.linear.y = uopt(1);
+            vel_msg.twist.angular.z = uopt(2);
+            this->velPub_[0].publish(vel_msg);
+            ROS_INFO("CBF SUCCESS");
+        }
+        else{
+            ROS_INFO("CBF FAILED");
+            ROS_ERROR("CBF FAILED");
+        }
 
 
+    if ((GRAPHICS_ON) && (this->app_gui->isOpen()))
+    {
+        this->app_gui->display();
+    }
+    
+    // this->velPub_[0].publish(vel_msg);
 
 
     auto end = std::chrono::high_resolution_clock::now();
@@ -648,11 +758,17 @@ void Controller::neighCallback(const geometry_msgs::PoseArray::ConstPtr msg)
             p_j(0,j) = this->pose_x(ROBOT_ID) + this->pose_x(j) * cos(this->pose_theta(ROBOT_ID)) - this->pose_y(j) * sin(this->pose_theta(ROBOT_ID));
             p_j(1,j) = this->pose_y(ROBOT_ID) + this->pose_x(j) * sin(this->pose_theta(ROBOT_ID)) + this->pose_y(j) * cos(this->pose_theta(ROBOT_ID));
             p_j(2,j) = this->pose_theta(j);
+
+            int c = j;
+            if (j>ROBOT_ID) {c = j-1;}
+            p_j_i.col(c) << this->pose_x(j), this->pose_y(j), this->pose_theta(j);
         } else 
         {
             // column of the controlled robot contains its own global position
             p_j.col(j) << this->pose_x(ROBOT_ID), this->pose_y(ROBOT_ID), this->pose_theta(ROBOT_ID);
         }
+
+        
     }
 
     // std::cout << "Global position of robots: \n" << p_j << std::endl;
@@ -690,6 +806,20 @@ Eigen::VectorXd Controller::predictVelocity(Eigen::VectorXd q, Eigen::VectorXd g
     return u;
 }
 
+void Controller::vel_callback(const geometry_msgs::Twist::ConstPtr &msg)
+{
+    Eigen::Vector3d u_global;
+    u_global(0) = msg->linear.x;
+    u_global(1) = msg->linear.y;
+    u_global(2) = msg->angular.z;
+
+    Eigen::MatrixXd R_w_i;                          // rotation matrix from global to local
+    R_w_i.resize(3,3);
+    R_w_i << cos(this->pose_theta(ROBOT_ID)), -sin(this->pose_theta(ROBOT_ID)), 0,
+            sin(this->pose_theta(ROBOT_ID)), cos(this->pose_theta(ROBOT_ID)), 0,
+            0, 0, 1;
+    ustar = R_w_i * u_global;
+}
 
 
 void Controller::joy_callback(const geometry_msgs::Twist::ConstPtr msg)
