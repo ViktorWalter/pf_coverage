@@ -4,7 +4,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 
 # Install some basic dependencies
 RUN apt-get update && apt-get -y upgrade && apt-get -y install \
-  curl ssh python3-pip git vim\
+  curl ssh python3-pip git vim cmake libeigen3-dev\
   && rm -rf /var/lib/apt/lists/*
 
 # Set root password
