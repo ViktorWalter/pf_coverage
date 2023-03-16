@@ -27,8 +27,8 @@ RUN git config --global user.email "215802@studenti.unimore.it"
 RUN git config --global color.ui true
 
 # Create symlink for Eigen folder
-RUN echo $(ls /usr/local/include)
-RUN cd /usr/local/include ; ln -sf eigen3/Eigen Eigen
+RUN echo $(ls /usr/include)
+RUN cd /usr/include ; ln -sf eigen3/Eigen Eigen
 
 
 # Get packages for building
