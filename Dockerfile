@@ -1,8 +1,10 @@
 FROM ros:noetic
 
+ARG DEBIAN_FRONTEND=noninteractive
+
 # Install some basic dependencies
 RUN apt-get update && apt-get -y upgrade && apt-get -y install \
-  curl ssh python3-pip git\
+  curl ssh python3-pip git vim\
   && rm -rf /var/lib/apt/lists/*
 
 # Set root password
@@ -10,6 +12,9 @@ RUN echo 'root:root' | chpasswd
 
 # Permit SSH root login
 RUN sed -i 's/#*PermitRootLogin prohibit-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
+
+RUN echo "deb http://packages.ros.org/ros/ubuntu $(lsb_release -sc) main" > /etc/apt/sources.list.d/ros-latest.list
+
 
 # Install catkin-tools
 RUN apt-get update && apt-get install -y python3-catkin-tools tmux \
@@ -37,7 +42,7 @@ RUN apt-get update \
   # && rosdep update \
   # && rosdep install --from-paths src -iy \
   && rm -rf /var/lib/apt/lists/*
-RUN catkin build
+RUN catkin config --extend /opt/ros/noetic && catkin build --no-status
 
 # Automatically source the workspace when starting a bash session
 RUN echo "source /catkin_ws/devel/setup.bash" >> /etc/bash.bashrc
