@@ -17,7 +17,7 @@ RUN echo "deb http://packages.ros.org/ros/ubuntu $(lsb_release -sc) main" > /etc
 
 
 # Install catkin-tools
-RUN apt-get update && apt-get install -y python3-catkin-tools tmux \
+RUN apt-get update && apt-get install -y python3-catkin-tools tmux python-tf2-utilities\
   && rm -rf /var/lib/apt/lists/*
 
 # Git requirements
@@ -27,10 +27,9 @@ RUN git config --global user.email "215802@studenti.unimore.it"
 RUN git config --global color.ui true
 
 # Create symlink for Eigen folder
-# RUN echo $(ls /usr/include)
 RUN cd /usr/include ; ln -sf eigen3/Eigen Eigen
 
-RUN apt-get install ros-noetic-tf2-ros
+# RUN apt-get install ros-noetic-tf2-ros
 
 
 # Get packages for building
