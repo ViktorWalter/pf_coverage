@@ -29,7 +29,7 @@ RUN git config --global color.ui true
 # Create symlink for Eigen folder
 RUN cd /usr/include ; ln -sf eigen3/Eigen Eigen
 
-RUN apt-get install ros-noetic-tf2*
+RUN apt update && apt install -y ros-noetic-tf2*
 
 
 # Get packages for building
