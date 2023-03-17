@@ -17,7 +17,7 @@ RUN echo "deb http://packages.ros.org/ros/ubuntu $(lsb_release -sc) main" > /etc
 
 
 # Install catkin-tools
-RUN apt-get update && apt-get install -y python3-catkin-tools tmux python-tf2-utilities\
+RUN apt-get update && apt-get install -y python3-catkin-tools tmux\
   && rm -rf /var/lib/apt/lists/*
 
 # Git requirements
