@@ -89,7 +89,7 @@ class Controller
 {
 
 public:
-    Controller() : nh_priv_("~"), gmm_(), safety_controller(2.0, ROBOTS_NUM-1)
+    Controller() : nh_priv_("~"), gmm_(), safety_controller(2.0, 10.0, ROBOTS_NUM-1)
     {
         //------------------------------------------------- ROS parameters ---------------------------------------------------------
         this->nh_priv_.getParam("ROBOTS_NUM", ROBOTS_NUM);
@@ -219,9 +219,9 @@ public:
 
 
 private:
-    int ROBOTS_NUM = 6;
+    int ROBOTS_NUM = 3;
     double ROBOT_RANGE = 15.0;
-    int ROBOT_ID = 0;
+    int ROBOT_ID = 1;
     double ROBOT_FOV = 360.0;
     int MODE = 0;
     double GOAL_X = 10.0;
@@ -580,8 +580,8 @@ void Controller::phd_coverage()
                     l = 0;
                 }
 
-                a *= 5.0;
-                b *= 5.0;
+                a *= 2.0;
+                b *= 2.0;
                 
                 double theta = atan2(eigenvectors(1,m), eigenvectors(0,m));             // angle of the major axis wrt positive x-asis (ccw rotation)
                 if (theta < 0.0) {theta += M_PI;}                                    // angle in [0, 2pi
