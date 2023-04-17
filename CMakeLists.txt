@@ -21,6 +21,7 @@ find_package(GaussianMixtureModel REQUIRED)
 find_package(particle_filter REQUIRED)
 find_package(gaussian_mixture_model REQUIRED)
 find_package(safety_control REQUIRED)
+find_package(fow_control REQUIRED)
 find_package(OsqpEigen REQUIRED)
 
 ## System dependencies are found with CMake's conventions
@@ -114,7 +115,7 @@ find_package(OsqpEigen REQUIRED)
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
  INCLUDE_DIRS include
- LIBRARIES pf_coverage particle_filter GaussianMixtureModel safety_control
+ LIBRARIES pf_coverage particle_filter GaussianMixtureModel safety_control fow_control
  CATKIN_DEPENDS roscpp geometry_msgs nav_msgs sensor_msgs tf2 tf2_ros visualization_msgs
  DEPENDS OsqpEigen
 )
@@ -129,6 +130,7 @@ include_directories(
   include
   ${catkin_INCLUDE_DIRS}
   ${particle_filter_INCLUDE_DIRS}
+  ${fow_control_INCLUDE_DIRS}
   ${GaussianMixtureModel_INCLUDE_DIRS}
   ${gaussian_mixture_model_INCLUDE_DIRS}
   ${safety_control_INCLUDE_DIRS}
@@ -151,6 +153,7 @@ set(dependencies
   "GaussianMixtureModel"
   "visualization_msgs"
   "gaussian_mixture_model"
+  "fow_control"
 )
 
 set(SFML_libraries
@@ -223,6 +226,41 @@ target_link_libraries(phd_coverage
   # ${GaussianMixtureModel_LIBRARIES}
   ${SFML_libraries}
   ${gaussian_mixture_model_LIBRARIES}
+  ${safety_control_LIBRARIES}
+  OsqpEigen::OsqpEigen
+)
+
+add_executable(clf_coverage src/clf_coverage.cpp)
+add_dependencies(clf_coverage ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(clf_coverage
+  ${catkin_LIBRARIES}
+  ${particle_filter_LIBRARIES}
+  ${SFML_libraries}
+  ${gaussian_mixture_model_LIBRARIES}
+  ${safety_control_LIBRARIES}
+  OsqpEigen::OsqpEigen
+)
+
+add_executable(navigation_test src/navigation_test.cpp)
+add_dependencies(navigation_test ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(navigation_test
+  ${catkin_LIBRARIES}
+  ${particle_filter_LIBRARIES}
+  ${SFML_libraries}
+  ${gaussian_mixture_model_LIBRARIES}
+  ${fow_control_LIBRARIES}
+  ${safety_control_LIBRARIES}
+  OsqpEigen::OsqpEigen
+)
+
+add_executable(cbf_coverage src/cbf_coverage.cpp)
+add_dependencies(cbf_coverage ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(cbf_coverage
+  ${catkin_LIBRARIES}
+  ${particle_filter_LIBRARIES}
+  ${SFML_libraries}
+  ${gaussian_mixture_model_LIBRARIES}
+  ${fow_control_LIBRARIES}
   ${safety_control_LIBRARIES}
   OsqpEigen::OsqpEigen
 )
