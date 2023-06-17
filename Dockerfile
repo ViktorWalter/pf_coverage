@@ -37,7 +37,7 @@ WORKDIR /catkin_ws
 RUN mkdir src
 RUN catkin config --extend /opt/ros/noetic && catkin build --no-status
 RUN cd src/ ; git clone https://github.com/MatCat960/pf_coverage.git
-RUN cd src/pf_coverage ; git checkout docker-devel ; git pull origin docker-devel
+RUN cd src/pf_coverage ; git checkout ros1-noetic ; git pull origin ros1-noetic
 RUN cd src/ ; git clone https://github.com/MatCat960/particle_filter.git
 RUN cd src/particle_filter ; git checkout ros1-noetic ; git pull origin ros1-noetic
 RUN cd src/ ; git clone https://github.com/ARSControl/gaussian_mixture_model.git
