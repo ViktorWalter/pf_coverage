@@ -4,11 +4,13 @@ on:
   push:
     branches:
       - master
+      - ros1-noetic
     tags:
       - '*'
   pull_request:
     branches:
       - master
+      - ros1-noetic
   workflow_dispatch:
       
 env:
