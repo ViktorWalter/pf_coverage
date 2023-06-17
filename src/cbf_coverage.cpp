@@ -52,7 +52,7 @@
 #include <gaussian_mixture_model/gaussian_mixture_model.h>
 #include <safety_control/SafetyController.h>
 #include <fow_control/FowController.h>
-
+#include <hqp/Hqp.h>
 
 
 #define M_PI   3.14159265358979323846  /*pi*/
@@ -61,10 +61,10 @@ using namespace std::chrono_literals;
 using std::placeholders::_1;
 
 //Robots parameters ------------------------------------------------------
-double SAFETY_DIST = 1.0;
+double SAFETY_DIST = 2.0;
 const double MAX_LIN_VEL = 1.5;         //set to turtlebot max velocities
 // const double MAX_ANG_VEL = 2*M_PI*MAX_LIN_VEL/SAFETY_DIST;
-const double MAX_ANG_VEL = 3.0;
+const double MAX_ANG_VEL = 1.5;
 const double b = 0.025;                 //for differential drive control (only if we are moving a differential drive robot (e.g. turtlebot))
 //------------------------------------------------------------------------
 const bool centralized_centroids = false;   //compute centroids using centralized computed voronoi diagram
@@ -86,7 +86,7 @@ class Controller
 {
 
 public:
-    Controller() : nh_priv_("~"), gmm_(), safety_controller(1.0, 100.0, ROBOTS_NUM-1), fow_controller(2.09, 0.0, ROBOT_RANGE, ROBOTS_NUM-1)
+    Controller() : nh_priv_("~"), gmm_(), fow_controller(2.0944, SAFETY_DIST, ROBOT_RANGE, ROBOTS_NUM-1), hqp_solver(2.0944, SAFETY_DIST, ROBOT_RANGE, ROBOTS_NUM-1)
     {
         //------------------------------------------------- ROS parameters ---------------------------------------------------------
         this->nh_priv_.getParam("ROBOTS_NUM", ROBOTS_NUM);
@@ -115,6 +115,8 @@ public:
 
         this->nh_priv_.getParam("GAUSS_X", GAUSS_X);
         this->nh_priv_.getParam("GAUSS_Y", GAUSS_Y);
+        
+        this->nh_priv_.getParam("SAVE_LOGS", SAVE_LOGS);
 
 
     //--------------------------------------------------- Subscribers and Publishers ----------------------------------------------------
@@ -127,7 +129,7 @@ public:
     neighSub_ = nh_.subscribe<geometry_msgs::PoseArray>("/supervisor/robot" + std::to_string(ROBOT_ID) + "/pose", 1, std::bind(&Controller::neighCallback, this, std::placeholders::_1));
     joySub_ = nh_.subscribe<geometry_msgs::Twist>("/cmd_vel", 1, std::bind(&Controller::vel_callback, this, std::placeholders::_1));
     velPub_.push_back(nh_.advertise<geometry_msgs::TwistStamped>("/hummingbird" + std::to_string(ROBOT_ID) + "/autopilot/velocity_command", 1));
-    timer_ = nh_.createTimer(ros::Duration(0.2), std::bind(&Controller::cbf_coverage, this));
+    timer_ = nh_.createTimer(ros::Duration(0.25), std::bind(&Controller::cbf_coverage2, this));
     
     //rclcpp::on_shutdown(std::bind(&Controller::stop,this));
 
@@ -139,6 +141,7 @@ public:
     p_j_i.resize(3, ROBOTS_NUM-1);
     p_j_est.resize(3, ROBOTS_NUM-1);
     slack.resize(4, ROBOTS_NUM-1);
+    slack_neg.resize(4, ROBOTS_NUM-1);
     realpose_x = Eigen::VectorXd::Zero(ROBOTS_NUM);
     realpose_y = Eigen::VectorXd::Zero(ROBOTS_NUM);
     realpose_theta = Eigen::VectorXd::Zero(ROBOTS_NUM);
@@ -152,14 +155,30 @@ public:
     // Optimal value of K(x) calculated with LQR
     Kopt = Eigen::DiagonalMatrix<double, 3, 3>(0.618, 0.618, 0.618);
 
+    slack_max.resize(4);
+    double x1m, x2m, y1m, y2m;
+    double fov = ROBOT_FOV * M_PI / 180;
+    x1m = AREA_SIZE_x * cos(-fov/2 + 0.5*M_PI);
+    x2m = AREA_SIZE_x * cos(fov/2 + 0.5*M_PI);
+    y1m = AREA_SIZE_y * sin(-fov/2 + 0.5*M_PI);
+    y2m = AREA_SIZE_y * sin(fov/2 + 0.5*M_PI);
+    slack_max(0) = tan(fov/2) * x1m + y1m;
+    slack_max(1) = tan(fov/2) * x2m - y2m;
+    // slack_max(2) = -pow(SAFETY_DIST,2);
+    slack_max(2) = 0.0;                         // safety constraint is always hard
+    slack_max(3) = -(pow(AREA_SIZE_x,2) + pow(AREA_SIZE_y,2)) + pow(ROBOT_RANGE,2);
+    slack_max = slack_max.cwiseAbs();
+    std::cout << "============ SLACK SATURATION VALUES ================\n" << slack_max.transpose() << "\n==========================\n";
 
+    fow_controller.setVerbose(false);
+    // safety_controller.setVerbose(false);
+    hqp_solver.setVerbose(false);
 
     for (int i = 0; i < ROBOTS_NUM - 1; i++)
     {
-        ParticleFilter *filter = new ParticleFilter(PARTICLES_NUM, Eigen::Vector3d::Zero(), 0.1*Eigen::Vector3d::Ones());
+        ParticleFilter *filter = new ParticleFilter(PARTICLES_NUM, Eigen::Vector3d::Zero(), 10*Eigen::Vector3d::Ones());
         filters.push_back(filter);
     }
-    
 
 	// this->got_gmm = false;
     std::cout << "Hi! I'm robot number " << ROBOT_ID << std::endl;
@@ -179,12 +198,23 @@ public:
         app_gui.reset(new Graphics{AREA_SIZE_x, AREA_SIZE_y, AREA_LEFT, AREA_BOTTOM, 2.0});
     }
 
+    if (SAVE_LOGS)
+    {
+        open_log_file();
+    }
+
     // std::cout << "Input : " << filter->getInput().transpose() << std::endl;
     }
     ~Controller()
     {
         if ((GRAPHICS_ON) && (this->app_gui->isOpen())){this->app_gui->close();}
         std::cout<<"DESTROYER HAS BEEN CALLED"<<std::endl;
+
+        if(SAVE_LOGS)
+        {
+            close_log_file();
+            std::cout << "LOG FILE HAS BEEN CLOSED" << std::endl;
+        }
     }
 
     //void stop(int signum);
@@ -198,43 +228,51 @@ public:
     Eigen::VectorXd Matrix_row_sum(Eigen::MatrixXd x);
     Eigen::MatrixXd Diag_Matrix(Eigen::VectorXd V);
     void cbf_coverage();
+    void cbf_coverage2();
     void pf_coverage();
     bool insideFOV(Eigen::VectorXd q, Eigen::VectorXd q_obs, double fov, double r_sens);
     bool is_outlier(Eigen::VectorXd q, Eigen::VectorXd mean, Eigen::MatrixXd cov_matrix, double threshold);
     bool isOut(Eigen::VectorXd sample, Eigen::VectorXd mean, Eigen::MatrixXd cov_matrix);
     Eigen::VectorXd predictVelocity(Eigen::VectorXd q, Eigen::VectorXd mean_pt);
+    Eigen::VectorXd predictCentrVel(Eigen::VectorXd q, Vector2<double> mean_pt);
     Eigen::VectorXd getWheelVelocity(Eigen::VectorXd u, double alpha);
     geometry_msgs::Twist Diff_drive_compute_vel(double vel_x, double vel_y, double alfa);
     double mahalanobis_distance(Eigen::VectorXd x, Eigen::VectorXd mean, Eigen::MatrixXd cov_matrix);
     Eigen::VectorXd gradV(Eigen::VectorXd q, Eigen::VectorXd x2, Eigen::VectorXd x_goal, Eigen::MatrixXd cov, double alpha);
     Eigen::VectorXd boundVel(Eigen::VectorXd u);
+    Eigen::VectorXd boundVelprop(Eigen::VectorXd u);
     Eigen::VectorXd gradient_descent(Eigen::VectorXd q, std::vector<Eigen::VectorXd> means, Eigen::VectorXd x_goal, std::vector<Eigen::MatrixXd> cov, double alpha, double alpha_grad, int iters);
     Eigen::VectorXd gradV2(Eigen::VectorXd q, std::vector<Eigen::VectorXd> means, Eigen::VectorXd x_goal, std::vector<Eigen::MatrixXd> cov, double alpha);
+    double sigmoid(double x);
+
+    int PARTICLES_NUM = 500;
     
-    int PARTICLES_NUM = 40;
-    
-    
+    //open write and close LOG file
+    void open_log_file();
+    void write_log_file(std::string text);
+    void close_log_file();
 
 
 
 private:
-    int ROBOTS_NUM = 3;
-    double ROBOT_RANGE = 6.0;
+    int ROBOTS_NUM = 6;
+    double ROBOT_RANGE = 15.0;
     int ROBOT_ID = 0;
-    double ROBOT_FOV = 120.0;
+    double ROBOT_FOV = 150.0;
     int MODE = 0;
     double GOAL_X = 10.0;
     double GOAL_Y = 10.0;
     double GAUSS_X = 7.5;
     double GAUSS_Y = 7.5;
-    double dist_lim = 2.0;                // mahalanobis distance limit (in terms of standard deviations)  
+    double dist_lim = 1.0;                // mahalanobis distance limit (in terms of standard deviations)  
     // int PARTICLES_NUM;
     bool got_gmm;
     double vel_linear_x, vel_angular_z;
     Eigen::VectorXd pose_x;
     Eigen::VectorXd pose_y;
     Eigen::VectorXd pose_theta;
-    Eigen::MatrixXd p_j, p_j_i, p_j_est, slack;
+    Eigen::MatrixXd p_j, p_j_i, p_j_est, slack, slack_neg;
+    Eigen::VectorXd slack_max;
     Eigen::VectorXd realpose_x;
     Eigen::VectorXd realpose_y;
     Eigen::VectorXd realpose_theta;
@@ -266,12 +304,15 @@ private:
     GaussianMixtureModel gmm_;
 
     // ------------------------------- Safety Controller ---------------------------------
-    safety_control::SafetyController safety_controller;
+    // safety_control::SafetyController safety_controller;
     fow_control::FowController fow_controller;
-    Eigen::VectorXd h;
+    Eigen::VectorXd h, h_tmp;
     Eigen::Vector3d ustar;
     Eigen::Vector3d target;
-    
+
+    // ---- HQP solver -------
+    Hqp hqp_solver;
+
 
     
     // std::vector<Eigen::VectorXd> total_samples;
@@ -303,14 +344,55 @@ private:
     //graphical view - ON/OFF
     bool GRAPHICS_ON = true;
 
+    bool SAVE_LOGS = false;
+
     //timer - check how long robots are being stopped
     time_t timer_init_count;
     time_t timer_final_count;
+
+    std::ofstream log_file;
 
     int counter = 0;
 
 
 };
+
+void Controller::open_log_file()
+{
+    std::time_t t = time(0);
+    struct tm * now = localtime(&t);
+    char buffer [80];
+
+    char *dir = get_current_dir_name();
+    std::string dir_str(dir);
+
+    std::cout << "Directory: " << dir_str << std::endl;
+
+    if (IsPathExist(dir_str + "/pf_logs"))     //check if the folder exists
+    {
+        strftime (buffer,80,"/pf_logs/%Y_%m_%d_%H-%M_logfile.txt",now);
+    } else {
+        system(("mkdir " + (dir_str + "/pf_logs")).c_str());
+        strftime (buffer,80,"/pf_logs/%Y_%m_%d_%H-%M_logfile.txt",now);
+    }
+
+    std::cout<<"file name :: "<<dir_str + buffer<<std::endl;
+    this->log_file.open(dir_str + buffer,std::ofstream::app);
+}
+
+void Controller::write_log_file(std::string text)
+{
+    if (this->log_file.is_open())
+    {
+        this->log_file << text;
+    }
+}
+
+void Controller::close_log_file()
+{
+    std::cout<<"Log file is being closed"<<std::endl;
+    this->log_file.close();
+}
 
 bool Controller::insideFOV(Eigen::VectorXd q, Eigen::VectorXd q_obs, double fov, double r_sens)
 {
@@ -368,18 +450,14 @@ Eigen::VectorXd Controller::getWheelVelocity(Eigen::VectorXd u, double alpha)
     return u_final;
 }
 
-
-
 void Controller::cbf_coverage()
 {
     auto timerstart = std::chrono::high_resolution_clock::now();
-    Eigen::Vector3d processCovariance = 0.1*Eigen::Vector3d::Ones();
+    Eigen::Vector3d processCovariance = 0.5*Eigen::Vector3d::Ones();
     Eigen::Vector3d robot;                           // controlled robot's global position
     robot << this->pose_x(ROBOT_ID), this->pose_y(ROBOT_ID), this->pose_theta(ROBOT_ID);
     Eigen::MatrixXd samples(3, PARTICLES_NUM);          // particles' global position
     std::vector<Eigen::VectorXd> samples_vec;
-    // Eigen::MatrixXd samples_mat(3, PARTICLES_NUM*(ROBOTS_NUM-1));
-    // std::vector<Eigen::VectorXd> samples_lost;
     std::vector<bool> detected(ROBOTS_NUM-1, false);      // vector of detected robots
     int detected_counter = 0;                           // number of detected robots
     std::vector<Eigen::VectorXd> detections;
@@ -387,7 +465,481 @@ void Controller::cbf_coverage()
     std::vector<Eigen::MatrixXd> cov;
     std::vector<double> ws;
     slack.setOnes();
-    slack = 1000*slack;
+    slack = 100000*slack;
+    slack.row(2).setZero();
+
+    slack_neg.setZero();
+    // slack.setZero();
+
+    // Define rotation matrix
+    Eigen::Matrix<double,3,3> R_w_i;
+    R_w_i << cos(this->pose_theta(ROBOT_ID)), -sin(this->pose_theta(ROBOT_ID)), 0,
+             sin(this->pose_theta(ROBOT_ID)), cos(this->pose_theta(ROBOT_ID)), 0,
+             0, 0, 1;
+
+    // calculate Voronoi partitioning and centroids of each cell
+    Box<double> AreaBox{AREA_LEFT, AREA_BOTTOM, AREA_SIZE_x + AREA_LEFT, AREA_SIZE_y + AREA_BOTTOM};
+    Box<double> RangeBox{ROBOT_RANGE, ROBOT_RANGE, ROBOT_RANGE, ROBOT_RANGE};
+    std::vector<double> VARs = {2.0};
+    std::vector<Vector2<double>> MEANs = {{GAUSSIAN_MEAN_PT(0), GAUSSIAN_MEAN_PT(1)}};
+    std::vector<Vector2<double>> ctrs;
+    if (this->got_gmm)
+    {
+        std::vector<Vector2<double>> pts;
+        for (int j = 0; j < p_j_est.cols(); j++)
+        {
+            pts.push_back({p_j_est(0,j), p_j_est(1,j)});
+        }
+        auto diagrams = generateDecentralizedDiagrams(pts, RangeBox, ROBOT_RANGE, AreaBox);
+        for (auto diagram : diagrams)
+        {
+            Vector2<double> ctr = computePolygonCentroid(diagram, MEANs, VARs);
+            // convert to global frame
+            Vector2<double> ctr_global = {ctr.x + this->pose_x(ROBOT_ID), ctr.y + this->pose_y(ROBOT_ID)};
+            ctrs.push_back(ctr_global);
+        }
+    }
+
+    for (int j = 0; j < ROBOTS_NUM; j++)
+    {
+        double c = j;                       // robot's id variable
+        if (j > ROBOT_ID) {c = j-1;}
+        if (j != ROBOT_ID)
+        {
+            // Check if the robot is detected
+            if (this->pose_x(j) != 100.0 && this->pose_y(j) != 100.0)
+            {
+                // std::cout << "Robot " << j << " detected in " << this->pose_x(j) << ", " << this->pose_y(j) << std::endl;
+                detected[c] = true;
+                detected_counter++;
+                if (this->pose_x(j) == 0.0 && this->pose_y(j) == 0.0)
+                {
+                    // std::cout << "Error in robot " << j << " initialization. Skipping..." << std::endl;
+                    return;
+                }
+
+                if (!this->got_gmm)
+                {
+                    obs.push_back(p_j.col(j).head(2));
+                    cov.push_back(Eigen::Matrix2d::Identity());
+                    ws.push_back(1.0 / (ROBOTS_NUM-1));
+                }
+
+                // Case 1: robot detected --- define particles with small covariance around the detected position
+                // Estimate velocity of the lost robot for coverage
+                Eigen::VectorXd q_est = filters[c]->getMean();
+                
+                // std::cout << "Estimated state: " << q_est.transpose() << std::endl;
+                Eigen::Vector2d u_ax;
+                if(this->got_gmm)
+                {
+                    u_ax = predictCentrVel(q_est, ctrs[j]);                        // get linear velocity [vx, vy] moving towards me
+                } else
+                {
+                    u_ax = predictVelocity(q_est, p_j.col(j).head(2));                        // get linear velocity [vx, vy] moving towards me
+                }
+                
+                // std::cout << "Linear velocity: " << u_ax.transpose() << std::endl;
+                // Eigen::VectorXd u_est(2);
+                // u_est = getWheelVelocity(u_ax, q_est(2));                               // get wheel velocity [v_l, v_r] to reach the mean point
+                // std::cout << "wheels velocity: " << u_est.transpose() << std::endl;
+                // Eigen::Vector3d processCovariance = 0.5*Eigen::Vector3d::Ones();
+                filters[c]->setProcessCovariance(processCovariance);
+                filters[c]->predictUAV(0.5*u_ax,dt);
+                // std::cout << "Prediction completed" << std::endl;
+
+                filters[c]->updateWeights(p_j.col(j), 0.1);
+            } else 
+            {
+                // Case 2: robot not detected
+                // std::cout << "Robot " << j << " not detected." << std::endl;            
+                // Estimate velocity of the lost robot for coverage
+                Eigen::VectorXd q_est = filters[c]->getMean();
+                // std::cout << "Estimated state: " << q_est.transpose() << std::endl;
+                Eigen::Vector2d u_ax;
+                if(this->got_gmm)
+                {
+                    u_ax = predictCentrVel(q_est, ctrs[j]);                        // get linear velocity [vx, vy] moving towards me
+                } else
+                {
+                    u_ax = predictVelocity(q_est, p_j.col(j).head(2));                        // get linear velocity [vx, vy] moving towards me
+                }                 // get linear velocity [vx, vy] moving towards me
+                // std::cout << "Linear velocity: " << u_ax.transpose() << std::endl;
+                // Eigen::VectorXd u_est(2);
+                // u_est = getWheelVelocity(u_ax, q_est(2));                               // get wheel velocity [v_l, v_r] to reach the mean point
+                // std::cout << "wheels velocity: " << u_est.transpose() << std::endl;
+                filters[c]->setProcessCovariance(processCovariance);
+                filters[c]->predictUAV(0.5*u_ax,dt);
+                // std::cout << "Prediction completed" << std::endl;
+
+                // Get particles in required format
+                Eigen::MatrixXd particles = filters[c]->getParticles();
+                // std::vector<Eigen::VectorXd> samples;
+                Eigen::VectorXd weights = filters[c]->getWeights();
+                for (int i=0; i<particles.cols(); i++)
+                {
+                    Eigen::VectorXd sample = particles.col(i);
+                    if (insideFOV(robot, sample, ROBOT_FOV, ROBOT_RANGE))
+                    {
+                        weights(i) = 0.0;
+                    }
+                    // samples.push_back(sample);
+                }
+                // std::cout << "Particles converted to required format" << std::endl;
+                filters[c]->setWeights(weights);            // update weights                
+            }
+
+            filters[c]->resample();
+        }
+    }
+
+    if (!this->got_gmm)
+    {
+        gmm_.setMeans(obs);
+        gmm_.setCovariances(cov);
+        gmm_.setWeights(ws);
+        gmm_.check();
+        // filter.setParticles(samples_vec);
+        
+        this->got_gmm = true;
+    }
+
+    
+    
+
+    if ((GRAPHICS_ON) && (this->app_gui->isOpen()))
+    {
+        this->app_gui->clear();
+        this->app_gui->drawGlobalReference(sf::Color(255,255,0), sf::Color(255,255,255));
+        this->app_gui->drawFOV(robot, ROBOT_FOV, ROBOT_RANGE);
+        this->app_gui->drawPoint(GAUSSIAN_MEAN_PT, sf::Color(255,128,0));
+        // Vector2<double> goal = {GOAL_X, GOAL_Y};
+        // this->app_gui->drawPoint(goal, sf::Color(255,128,0));
+        for (int i = 0; i < ROBOTS_NUM; i++)
+        {
+            auto color = sf::Color(0,255,0);                        // default color for other robots: green
+            if (i == ROBOT_ID) {color = sf::Color(255,0,0);}        // controlled robot color: red
+            Vector2<double> n;
+            n.x = this->realpose_x(i);
+            n.y = this->realpose_y(i);
+            this->app_gui->drawPoint(n, color);
+            // this->app_gui->drawID(n, i, color);
+        }
+
+        // this->app_gui->drawPoint(me);
+        // this->app_gui->drawParticles(samples_mat);
+        
+        for (int i = 0; i < filters.size(); i++)
+        {
+            this->app_gui->drawParticles(filters[i]->getParticles());
+        }
+    }
+
+    std::vector<double> distances(ROBOTS_NUM-1);
+    for (int i = 0; i < ROBOTS_NUM-1; i++)
+    {
+        Eigen::VectorXd mean = filters[i]->getMean();
+        // std::cout << "Neighbor " << i << " estimated position: " << mean.transpose() << std::endl;
+        double dist_x = mean(0) - this->pose_x(ROBOT_ID);
+        double dist_y = mean(1) - this->pose_y(ROBOT_ID);
+
+        p_j_est(0,i) = dist_x * cos(this->pose_theta(ROBOT_ID)) + dist_y * sin(this->pose_theta(ROBOT_ID));
+        p_j_est(1,i) = -dist_x * sin(this->pose_theta(ROBOT_ID)) + dist_y * cos(this->pose_theta(ROBOT_ID));
+        p_j_est(2,i) = 0.0;
+        if (this->got_gmm)
+        {
+            Eigen::MatrixXd cov_matrix = filters[i]->getCovariance();
+            if(!isinf(cov_matrix(0,0)))
+            {
+                Eigen::EigenSolver<Eigen::MatrixXd> es(cov_matrix.block<2,2>(0,0));
+                Eigen::VectorXd eigenvalues  = es.eigenvalues().real();
+                // std::cout << "Eigenvalues: \n" << eigenvalues.transpose() << "\n";
+                Eigen::MatrixXd eigenvectors = es.eigenvectors().real();
+                // std::cout << "Eigenvectors: \n" << eigenvectors.transpose() << "\n";
+                
+                // s = 4.605 for 90% confidence interval
+                // s = 5.991 for 95% confidence interval
+                // s = 9.210 for 99% confidence interval
+                double s = 4.605;
+                double a = sqrt(s*eigenvalues(0));            // major axis
+                double b = sqrt(s*eigenvalues(1));            // minor axis
+
+                // a could be smaller than b, so swap them
+                if (a < b)
+                {
+                    double temp = a;
+                    a = b;
+                    b = temp;
+                }
+
+                int m = 0;                  // higher eigenvalue index
+                int l = 1;                  // lower eigenvalue index
+                if (eigenvalues(1) > eigenvalues(0)) 
+                {
+                    m = 1;
+                    l = 0;
+                }
+                
+                double theta = atan2(eigenvectors(1,m), eigenvectors(0,m));             // angle of the major axis wrt positive x-asis (ccw rotation)
+                if (theta < 0.0) {theta += M_PI;}                                    // angle in [0, 2pi
+                if ((GRAPHICS_ON) && (this->app_gui->isOpen()))
+                {
+                    this->app_gui->drawEllipse(mean, a, b, theta);
+                }
+
+                double slope = atan2(-mean(1) + this->pose_y(ROBOT_ID), -mean(0) + this->pose_x(ROBOT_ID));
+                double x_n = mean(0) + a * cos(slope - theta) * cos(theta) - b * sin(slope - theta) * sin(theta);
+                double y_n = mean(1) + a * cos(slope - theta) * sin(theta) + b * sin(slope - theta) * cos(theta);
+                Vector2<double> p_near = {x_n, y_n};
+
+   
+                double a_lim = 3.0;             // width limit for major axis
+                double sx = cov_matrix(0,0);
+                double sy = cov_matrix(1,1);
+
+                double dist = sqrt(pow(p_near.x - this->pose_x(ROBOT_ID), 2) + pow(p_near.y - this->pose_y(ROBOT_ID), 2));
+                // double dist = mahalanobis_distance(robot.head(2), mean.head(2), cov_matrix.block<2,2>(0,0));
+                // std::cout << "Distance: " << dist << "\n";
+                if (isnan(dist))
+                {
+                    ROS_WARN("NaN distance calculated");
+                    dist = 5.0;
+                } else
+                {
+                    slack_neg.col(i).head(2) = -0.2 * slack_max.head(2) * sigmoid((a - 3*a_lim));                // restrict angular fov by half
+                }
+                // slack_neg(4) = -0.5 * slack_max(4) * sigmoid(0.5 * (sy - 3*a_lim));                // restrict angular fov by half
+
+                
+
+                // Check if robot is inside ellipse
+                double d = sqrt(pow(mean(0) - this->pose_x(ROBOT_ID), 2) + pow(mean(1) - this->pose_y(ROBOT_ID), 2));
+                double range = sqrt(pow(mean(0) - p_near.x, 2) + pow(mean(1) - p_near.y, 2));
+                if (d < range)
+                {
+                    distances[i] = -dist;
+                } else
+                {
+                    distances[i] = dist;
+                }
+            }
+        }
+    }
+
+ 
+    for (int i = 0; i < distances.size(); i++)
+    {
+        // slack.col(i) =  slack_max.cwiseProduct(sigmoid(2*(distances[i] - 2*SAFETY_DIST)) * Eigen::VectorXd::Ones(4)) + slack_neg.col(i);
+        slack.col(i) =  slack_max.cwiseProduct(sigmoid(distances[i] - 3*dist_lim) * Eigen::VectorXd::Ones(4)) + slack_neg.col(i);
+    }
+
+    // slack.row(3) = 100000 * Eigen::VectorXd::Ones(ROBOTS_NUM-1);
+
+    
+    // std::cout << "Slack variables: \n" << slack << "\n";
+
+    /* --------------------- HQP SLACK VARIABLES CALCULATION ----------------------------------------
+    std::vector<Eigen::VectorXd> p_j_ordered;
+    // p_j_ordered.resize(2, ROBOTS_NUM-1);
+    
+    std::vector<std::pair<Eigen::Vector3d, double>> pos_pairs;
+    for (int i = 0; i < distances.size(); i++)
+    {
+        // std::cout << p_j_est.col(i).transpose() << "\n";
+        pos_pairs.push_back(std::make_pair(p_j_est.col(i), distances[i]));
+    }
+    
+    // sort the vector based on distances
+    std::sort(pos_pairs.begin(), pos_pairs.end(), [](const auto& a, const auto& b){
+        return a.second < b.second;
+    });
+
+
+    std::vector<Eigen::VectorXd> slack_ordered;
+    // slack_ordered.resize(2, ROBOTS_NUM-1);
+    
+    std::vector<std::pair<Eigen::VectorXd, double>> slack_pairs;
+    for (int i = 0; i < distances.size(); i++)
+    {
+        slack_pairs.push_back(std::make_pair(slack.col(i), distances[i]));
+    }
+
+    // sort the vector based on distances
+    std::sort(slack_pairs.begin(), slack_pairs.end(), [](const auto& a, const auto& b){
+        return a.second < b.second;
+    });
+
+    for (int i = 0; i < distances.size(); i++)
+    {
+        p_j_ordered.push_back(pos_pairs[i].first);
+        slack_ordered.push_back(slack_pairs[i].first);
+    }
+
+    // calculate hqp slack variable
+    Eigen::VectorXd hqp_slack = hqp_solver.solve(p_j_ordered);
+    // std::cout << "HQP slack: \n" << hqp_slack.transpose() << "\n";
+
+    // backwards conversion to Eigen::MatrixXd
+    Eigen::MatrixXd p_j_mat, slack_mat;
+    p_j_mat.resize(3, ROBOTS_NUM-1);
+    slack_mat.resize(4, ROBOTS_NUM-1);
+    for (int i = 0; i < distances.size(); i++)
+    {
+        p_j_mat.col(i) = p_j_ordered[i];
+        slack_mat.col(i) = slack_ordered[i] + hqp_slack.block<4,1>(4*i,0);
+    }
+    ---------------------------------------------------------------------------*/
+
+
+
+
+    std::cout << "Starting Voronoi calculation... \n";
+    // ------------------------------- Voronoi -------------------------------
+    // Get detected or estimated position of neighbors in local coordinates
+    
+    double vel_x=0, vel_y=0;
+
+    Vector2<double> p = {this->pose_x(ROBOT_ID), this->pose_y(ROBOT_ID)};
+    std::vector<Vector2<double>> local_points;
+    local_points.push_back(p);
+    // Vector2<double> p_local = {0.0, 0.0};
+    // local_points.push_back(p_local);
+    for (int i = 0; i < ROBOTS_NUM-1; i++)
+    {
+        Vector2<double> p_local = {filters[i]->getMean()(0) - p.x, filters[i]->getMean()(1) - p.y};
+        local_points.push_back(p_local);
+    }
+
+    Vector2<double> centroid;
+    if (ctrs.size() > 0)
+    {
+        centroid = ctrs[ROBOT_ID];
+    } else
+    {
+        // std::cout << "Generating decentralized diagram.\n";
+        auto diagram = generateDecentralizedDiagram(local_points, RangeBox, p, ROBOT_RANGE, AreaBox);
+        // std::cout << "Diagram generated. Calculating centroid.\n";
+        centroid = computePolygonCentroid(diagram, MEANs, VARs);
+        // std::cout << "Centroid: " << centroid.x << ", " << centroid.y << "\n";
+    }
+
+    Eigen::Vector2d centroid_eigen = {this->pose_x(ROBOT_ID)+centroid.x, this->pose_y(ROBOT_ID)+centroid.y};
+    std::cout << "Global position of centroid: " << centroid_eigen.transpose() << std::endl;
+    // centroid_local(0) = centroid.x * cos(this->pose_theta(ROBOT_ID)) + centroid.y * sin(this->pose_theta(ROBOT_ID));
+    // centroid_local(1) = -centroid.x * sin(this->pose_theta(ROBOT_ID)) + centroid.y * cos(this->pose_theta(ROBOT_ID));
+    // std::cout << "Local coordinates centroid: " << centroid_local.transpose() << "\n";
+
+    Eigen::Vector3d udes;
+    double head_des = atan2(centroid_eigen(1), centroid_eigen(0));
+    double head_err = head_des - this->pose_theta(ROBOT_ID);
+    udes(0) = 0.8 * centroid.x;
+    udes(1) = 0.8 * centroid.y;
+    udes(2) = head_err;
+
+    udes = boundVel(udes);
+
+    Eigen::Vector3d uopt, uopt_loc, utemp, utemp_loc;
+    Eigen::Vector3d udes_loc = R_w_i * udes;
+    // std::cout  << "Slack variables matrix: \n--------------------------\n" << slack.transpose() << "\n--------------------------------\n";
+
+    // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! p_j_est !!!!!!!!!!!!!!!!!!!
+    if (!fow_controller.applyCbfSingle(utemp_loc, h_tmp, udes_loc, robot, ROBOTS_NUM-1, p_j_est, slack))              // slack variables equal to 0 in dangerous conditions -> hard constraint 
+    {
+        utemp = R_w_i.transpose() * utemp_loc;
+        // std::cout << "Desired control input: " << udes.transpose() << "\n";
+
+        if (SAVE_LOGS)
+        {
+            std::string txt;
+            for (int i = 0; i < ROBOTS_NUM-1; i++)
+            {
+                txt = txt + std::to_string(distances[i]) + " " + std::to_string(h_tmp(ROBOTS_NUM*i)) + " " + std::to_string(h_tmp(ROBOTS_NUM*i+1)) + " " + std::to_string(h_tmp(ROBOTS_NUM*i+2)) + " " + std::to_string(h_tmp(ROBOTS_NUM*i+3)) + " " + std::to_string(slack(0,i)) + " " + std::to_string(slack(1,i)) + " " + std::to_string(slack(2,i)) + " " + std::to_string(slack(3,i)) + "\n";
+            }
+            this->write_log_file(txt);
+        }
+
+        // uopt = utemp;
+        uopt = boundVel(utemp);
+    } else
+    {
+        ROS_WARN("SAFETY CBF FAILED");
+        uopt = udes;
+    }
+
+
+    
+    // std::cout << "Optimal control input: " << uopt.transpose() << "\n";
+    // // utemp = boundVel(utemp);
+    
+
+    if (uopt.head(2).norm() < CONVERGENCE_TOLERANCE)
+    {
+        std::cout << "Converged\n";
+        uopt.head(2).setZero();
+    }
+
+    // std::vector<double> margins(ROBOTS_NUM-1);
+    // std::fill(margins.begin(), margins.end(), 0.0);
+    // safety_controller.applyCbfLocal(uopt, h, udes_loc, p_j_i, margins);
+
+    // Publish control input
+    geometry_msgs::TwistStamped vel_msg;
+    // vel_msg.header.frame_id = "/hummingbird" + std::to_string(ROBOT_ID) + "/base_link";
+    vel_msg.twist.linear.x = uopt(0);
+    vel_msg.twist.linear.y = uopt(1);
+    vel_msg.twist.angular.z = uopt(2);
+    this->velPub_[0].publish(vel_msg);
+
+    
+
+
+    if ((GRAPHICS_ON) && (this->app_gui->isOpen()))
+    {
+        // Draw Voronoi diagram (centralized)
+        std::vector<Vector2<double>> mean_points_vec2;
+        Vector2<double> n = {this->pose_x(ROBOT_ID), this->pose_y(ROBOT_ID)};
+        mean_points_vec2.push_back(n);
+        for (int j = 0; j < ROBOTS_NUM-1; j++)
+        {
+            Vector2<double> mp = {filters[j]->getMean()(0), filters[j]->getMean()(1)};
+            mean_points_vec2.push_back(mp);
+            this->app_gui->drawPoint(mp, sf::Color(0,0,255));
+        }
+        auto diagram_centr = generateCentralizedDiagram(mean_points_vec2, AreaBox);
+        Vector2<double> centroid_global = {centroid.x + p.x, centroid.y + p.y};
+        this->app_gui->drawDiagram(diagram_centr);
+        this->app_gui->drawPoint(centroid_global, sf::Color(0,255,255));
+        this->app_gui->display();
+    }
+    
+    // this->velPub_[0].publish(vel_msg);
+
+
+    auto end = std::chrono::high_resolution_clock::now();
+    std::cout<<"Computation time cost: -----------------: "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - timerstart).count()<<" ms\n";
+}
+
+
+void Controller::cbf_coverage2()
+{
+    auto timerstart = std::chrono::high_resolution_clock::now();
+    Eigen::Vector3d processCovariance = 0.5*Eigen::Vector3d::Ones();
+    Eigen::Vector3d robot;                           // controlled robot's global position
+    robot << this->pose_x(ROBOT_ID), this->pose_y(ROBOT_ID), this->pose_theta(ROBOT_ID);
+    Eigen::MatrixXd samples(3, PARTICLES_NUM);          // particles' global position
+    std::vector<Eigen::VectorXd> samples_vec;
+    std::vector<bool> detected(ROBOTS_NUM-1, false);      // vector of detected robots
+    int detected_counter = 0;                           // number of detected robots
+    std::vector<Eigen::VectorXd> detections;
+    std::vector<Eigen::VectorXd> obs;
+    std::vector<Eigen::MatrixXd> cov;
+    std::vector<double> ws;
+    slack.setOnes();
+    slack = 100000*slack;
+    slack.row(2).setZero();
+
+    slack_neg.setZero();
+    // slack.setZero();
 
     // Define rotation matrix
     Eigen::Matrix<double,3,3> R_w_i;
@@ -404,12 +956,12 @@ void Controller::cbf_coverage()
             // Check if the robot is detected
             if (this->pose_x(j) != 100.0 && this->pose_y(j) != 100.0)
             {
-                std::cout << "Robot " << j << " detected in " << this->pose_x(j) << ", " << this->pose_y(j) << std::endl;
+                // std::cout << "Robot " << j << " detected in " << this->pose_x(j) << ", " << this->pose_y(j) << std::endl;
                 detected[c] = true;
                 detected_counter++;
                 if (this->pose_x(j) == 0.0 && this->pose_y(j) == 0.0)
                 {
-                    std::cout << "Error in robot " << j << " initialization. Skipping..." << std::endl;
+                    // std::cout << "Error in robot " << j << " initialization. Skipping..." << std::endl;
                     return;
                 }
 
@@ -421,73 +973,55 @@ void Controller::cbf_coverage()
                 }
 
                 // Case 1: robot detected --- define particles with small covariance around the detected position
-                filters[c]->matchObservation(p_j.col(j));
+                // Estimate velocity of the lost robot for coverage
+                Eigen::VectorXd q_est = filters[c]->getMean();
+                
+                // std::cout << "Estimated state: " << q_est.transpose() << std::endl;
+                Eigen::Vector2d u_ax = predictVelocity(q_est, GAUSSIAN_MEAN_PT);                        // get linear velocity [vx, vy] moving towards me
+                // std::cout << "Linear velocity: " << u_ax.transpose() << std::endl;
+                // Eigen::VectorXd u_est(2);
+                // u_est = getWheelVelocity(u_ax, q_est(2));                               // get wheel velocity [v_l, v_r] to reach the mean point
+                // std::cout << "wheels velocity: " << u_est.transpose() << std::endl;
+                // Eigen::Vector3d processCovariance = 0.5*Eigen::Vector3d::Ones();
+                filters[c]->setProcessCovariance(processCovariance);
+                filters[c]->predictUAV(0.5*u_ax,dt);
+                // std::cout << "Prediction completed" << std::endl;
+
+                filters[c]->updateWeights(p_j.col(j), 0.1);
             } else 
             {
                 // Case 2: robot not detected
-                std::cout << "Robot " << j << " not detected." << std::endl;            
+                // std::cout << "Robot " << j << " not detected." << std::endl;            
                 // Estimate velocity of the lost robot for coverage
                 Eigen::VectorXd q_est = filters[c]->getMean();
-                std::cout << "Estimated state: " << q_est.transpose() << std::endl;
+                // std::cout << "Estimated state: " << q_est.transpose() << std::endl;
                 Eigen::Vector2d u_ax = predictVelocity(q_est, GAUSSIAN_MEAN_PT);                        // get linear velocity [vx, vy] moving towards me
-                std::cout << "Linear velocity: " << u_ax.transpose() << std::endl;
+                // std::cout << "Linear velocity: " << u_ax.transpose() << std::endl;
                 // Eigen::VectorXd u_est(2);
                 // u_est = getWheelVelocity(u_ax, q_est(2));                               // get wheel velocity [v_l, v_r] to reach the mean point
                 // std::cout << "wheels velocity: " << u_est.transpose() << std::endl;
                 filters[c]->setProcessCovariance(processCovariance);
-                filters[c]->predictUAV(0.25*u_ax,dt);
-                std::cout << "Prediction completed" << std::endl;
+                filters[c]->predictUAV(0.5*u_ax,dt);
+                // std::cout << "Prediction completed" << std::endl;
 
                 // Get particles in required format
                 Eigen::MatrixXd particles = filters[c]->getParticles();
-                std::vector<Eigen::VectorXd> samples;
+                // std::vector<Eigen::VectorXd> samples;
+                Eigen::VectorXd weights = filters[c]->getWeights();
                 for (int i=0; i<particles.cols(); i++)
                 {
                     Eigen::VectorXd sample = particles.col(i);
-                    if (!insideFOV(robot, sample, ROBOT_FOV, ROBOT_RANGE))
+                    if (insideFOV(robot, sample, ROBOT_FOV, ROBOT_RANGE))
                     {
-                        samples.push_back(sample);
+                        weights(i) = 0.0;
                     }
                     // samples.push_back(sample);
                 }
-                std::cout << "Particles converted to required format" << std::endl;
-
-                // Generate new particles to replace the lost ones
-                // if (this->got_gmm)
-                // {
-                //     std::cout << "GMM already available. Generating needed particles: " << (PARTICLES_NUM - samples.size()) << std::endl;
-                //     std::vector<Eigen::VectorXd> new_samples = gmm_.drawSamples(PARTICLES_NUM - samples.size());
-                //     for (int k = 0; k < new_samples.size(); k++)
-                //     {
-                //         samples.push_back(new_samples[k]);
-                //     }
-                // } else
-                // {
-                // std::cout << "GMM not available. Generating needed particles: " << (PARTICLES_NUM - samples.size()) << std::endl;
-                Eigen::VectorXd mean = filters[c]->getState();
-                // p_j_i.col(j) = R_w_i * mean + robot;
-                // std::cout << "------------------------------------------------------\n";
-                // std::cout << "Global mean: " << mean.transpose() << std::endl;
-                // std::cout << "Local mean: " << p_j_i.col(j).transpose() << std::endl;
-                // std::cout << "------------------------------------------------------\n";
-                double mean_x = mean(0);
-                double mean_y = mean(1);
-                double mean_theta = mean(2);
-                std::default_random_engine gen;
-                std::normal_distribution<double> dx(mean_x, 0.5);
-                std::normal_distribution<double> dy(mean_y, 0.5);
-                std::normal_distribution<double> dtheta(mean_theta, 0.5);
-                
-                for (int k = samples.size(); k < PARTICLES_NUM; k++)
-                {
-                    Eigen::VectorXd sample(3);
-                    sample << dx(gen), dy(gen), dtheta(gen);
-                    samples.push_back(sample);
-                }
-                // }
-
-                filters[c]->setParticles(samples);
+                // std::cout << "Particles converted to required format" << std::endl;
+                filters[c]->setWeights(weights);            // update weights                
             }
+
+            filters[c]->resample();
         }
     }
 
@@ -503,32 +1037,7 @@ void Controller::cbf_coverage()
     }
 
     
-    // Get all particles in required format
-    std::cout << "Getting all particles in required format...\n";
-    for (int i = 0; i < filters.size(); i++)
-    {
-        Eigen::MatrixXd samples = filters[i]->getParticles();
-        for (int j = 0; j < samples.cols(); j++)
-        {
-            samples_vec.push_back(samples.col(j));
-            // samples_mat.col(i*filters.size() + j) = samples.col(j);
-        }
-    }
-
-    std::cout << "Running Expectation-Maximization...\n";
-    gmm_.fitgmm(samples_vec, ROBOTS_NUM - 1, 1000, 1e-2, false);
-    std::cout << "EM completed." << std::endl;
-    std::cout << "GMM means: " << std::endl;
-    for (int i = 0; i < gmm_.getMeans().size(); i++)
-    {
-        std::cout << gmm_.getMeans()[i].transpose() << std::endl;
-        double dist_x = gmm_.getMeans()[i](0) - this->pose_x(ROBOT_ID);
-        double dist_y = gmm_.getMeans()[i](1) - this->pose_y(ROBOT_ID);
-
-        p_j_est(0,i) = dist_x * cos(this->pose_theta(ROBOT_ID)) + dist_y * sin(this->pose_theta(ROBOT_ID));
-        p_j_est(1,i) = -dist_x * sin(this->pose_theta(ROBOT_ID)) + dist_y * cos(this->pose_theta(ROBOT_ID));
-        p_j_est(2,i) = 0.0;
-    }
+    
 
     if ((GRAPHICS_ON) && (this->app_gui->isOpen()))
     {
@@ -562,9 +1071,17 @@ void Controller::cbf_coverage()
     std::vector<double> distances(ROBOTS_NUM-1);
     for (int i = 0; i < ROBOTS_NUM-1; i++)
     {
+        Eigen::VectorXd mean = filters[i]->getMean();
+        // std::cout << "Neighbor " << i << " estimated position: " << mean.transpose() << std::endl;
+        double dist_x = mean(0) - this->pose_x(ROBOT_ID);
+        double dist_y = mean(1) - this->pose_y(ROBOT_ID);
+
+        p_j_est(0,i) = dist_x * cos(this->pose_theta(ROBOT_ID)) + dist_y * sin(this->pose_theta(ROBOT_ID));
+        p_j_est(1,i) = -dist_x * sin(this->pose_theta(ROBOT_ID)) + dist_y * cos(this->pose_theta(ROBOT_ID));
+        p_j_est(2,i) = 0.0;
         if (this->got_gmm)
         {
-            Eigen::MatrixXd cov_matrix = gmm_.getCovariances()[i];
+            Eigen::MatrixXd cov_matrix = filters[i]->getCovariance();
             if(!isinf(cov_matrix(0,0)))
             {
                 Eigen::EigenSolver<Eigen::MatrixXd> es(cov_matrix.block<2,2>(0,0));
@@ -576,7 +1093,7 @@ void Controller::cbf_coverage()
                 // s = 4.605 for 90% confidence interval
                 // s = 5.991 for 95% confidence interval
                 // s = 9.210 for 99% confidence interval
-                double s = 4.605;
+                double s = 5.991;
                 double a = sqrt(s*eigenvalues(0));            // major axis
                 double b = sqrt(s*eigenvalues(1));            // minor axis
 
@@ -595,76 +1112,126 @@ void Controller::cbf_coverage()
                     m = 1;
                     l = 0;
                 }
-
                 
                 double theta = atan2(eigenvectors(1,m), eigenvectors(0,m));             // angle of the major axis wrt positive x-asis (ccw rotation)
                 if (theta < 0.0) {theta += M_PI;}                                    // angle in [0, 2pi
                 if ((GRAPHICS_ON) && (this->app_gui->isOpen()))
                 {
-                    this->app_gui->drawEllipse(gmm_.getMeans()[i], a, b, theta);
+                    this->app_gui->drawEllipse(mean, a, b, theta);
                 }
 
-                double slope = atan2(-gmm_.getMeans()[i](1) + this->pose_y(ROBOT_ID), -gmm_.getMeans()[i](0) + this->pose_x(ROBOT_ID));
-                // slope += theta;
-                // double slope = 0.0;
-                // double x_n = mean_points[i](0) + a*cos(0.0);
-                // double y_n = mean_points[i](1) + b*sin(0.0);
-                double x_n = gmm_.getMeans()[i](0) + a * cos(slope - theta) * cos(theta) - b * sin(slope - theta) * sin(theta);
-                double y_n = gmm_.getMeans()[i](1) + a * cos(slope - theta) * sin(theta) + b * sin(slope - theta) * cos(theta);
-                // double x_n = gmm_.getMeans()[i](0) + eigenvectors(0,m) * a * cos(slope) + eigenvectors(0,l) * b * sin(slope);
-                // double y_n = gmm_.getMeans()[i](1) + eigenvectors(1,m) * a * cos(slope) + eigenvectors(1,l) * b * sin(slope);
+                double slope = atan2(-mean(1) + this->pose_y(ROBOT_ID), -mean(0) + this->pose_x(ROBOT_ID));
+                double x_n = mean(0) + a * cos(slope - theta) * cos(theta) - b * sin(slope - theta) * sin(theta);
+                double y_n = mean(1) + a * cos(slope - theta) * sin(theta) + b * sin(slope - theta) * cos(theta);
                 Vector2<double> p_near = {x_n, y_n};
 
-                // std::cout << "Robot position: " << this->pose_x(ROBOT_ID) << ", " << this->pose_y(ROBOT_ID) << "\n";
-                // std::cout << "Neighbor estimate: " << gmm_.getMeans()[i](0) << ", " << gmm_.getMeans()[i](1) << "\n";
-                // std::cout << "Ellipse orientation: " << theta << "\n";
-                // std::cout << "Slope" << slope << "\n";
-                // std::cout << "Eigenvalues: " << eigenvalues(m) << ", " << eigenvalues(l) << "\n";
+   
+                double a_lim = 3.0;             // width limit for major axis
+                double sx = cov_matrix(0,0);
+                double sy = cov_matrix(1,1);
 
                 double dist = sqrt(pow(p_near.x - this->pose_x(ROBOT_ID), 2) + pow(p_near.y - this->pose_y(ROBOT_ID), 2));
-                std::cout << "Distance: " << dist << "\n";
+                // double dist = mahalanobis_distance(robot.head(2), mean.head(2), cov_matrix.block<2,2>(0,0));
+                // std::cout << "Distance: " << dist << "\n";
+                if (isnan(dist))
+                {
+                    ROS_WARN("NaN distance calculated");
+                    dist = 5.0;
+                } else
+                {
+                    slack_neg.col(i).head(2) = -0.2 * slack_max.head(2) * sigmoid((a - 3*a_lim));                // restrict angular fov by half
+                }
+                // slack_neg(4) = -0.5 * slack_max(4) * sigmoid(0.5 * (sy - 3*a_lim));                // restrict angular fov by half
+
                 
 
                 // Check if robot is inside ellipse
-                double d = sqrt(pow(gmm_.getMeans()[i](0) - this->pose_x(ROBOT_ID), 2) + pow(gmm_.getMeans()[i](1) - this->pose_y(ROBOT_ID), 2));
-                if (d < a)
+                double d = sqrt(pow(mean(0) - this->pose_x(ROBOT_ID), 2) + pow(mean(1) - this->pose_y(ROBOT_ID), 2));
+                double range = sqrt(pow(mean(0) - p_near.x, 2) + pow(mean(1) - p_near.y, 2));
+                if (d < range)
                 {
                     distances[i] = -dist;
                 } else
                 {
                     distances[i] = dist;
                 }
-
-                // this->app_gui->drawPoint(p_near, sf::Color(255,0,127));
             }
         }
     }
 
-    
-    // for (int i = 0; i < ROBOTS_NUM; i++)
-    // {
-    //     int c = i;
-    //     if (i > ROBOT_ID) {c = i-1;}
-    //     if (i != ROBOT_ID)
-    //     {
-    //         double mahal = mahalanobis_distance(Eigen::Vector2d::Zero(), gmm_.getMeans()[c], gmm_.getCovariances()[c]);
-    //         std::cout << "Mahalanobis distance from robot " << i << ": " << mahal << "\n";
-    //         distances[c] = mahal;
-    //     }
-    // }
-
-    std::cout << "Distances: \n";
+ 
     for (int i = 0; i < distances.size(); i++)
     {
-        std::cout << distances[i] << "\n";
+        // slack.col(i) =  slack_max.cwiseProduct(sigmoid(2*(distances[i] - 2*SAFETY_DIST)) * Eigen::VectorXd::Ones(4)) + slack_neg.col(i);
+        slack.col(i) =  slack_max.cwiseProduct(sigmoid(distances[i] - 3*dist_lim) * Eigen::VectorXd::Ones(4)) + slack_neg.col(i);
     }
 
-    std::cout << "Starting Voronoi calculation... \n";
+    // slack.row(3) = 100000 * Eigen::VectorXd::Ones(ROBOTS_NUM-1);
+
+    
+    // std::cout << "Slack variables: \n" << slack << "\n";
+
+    /* --------------------- HQP SLACK VARIABLES CALCULATION ----------------------------------------
+    std::vector<Eigen::VectorXd> p_j_ordered;
+    // p_j_ordered.resize(2, ROBOTS_NUM-1);
+    
+    std::vector<std::pair<Eigen::Vector3d, double>> pos_pairs;
+    for (int i = 0; i < distances.size(); i++)
+    {
+        // std::cout << p_j_est.col(i).transpose() << "\n";
+        pos_pairs.push_back(std::make_pair(p_j_est.col(i), distances[i]));
+    }
+    
+    // sort the vector based on distances
+    std::sort(pos_pairs.begin(), pos_pairs.end(), [](const auto& a, const auto& b){
+        return a.second < b.second;
+    });
+
+
+    std::vector<Eigen::VectorXd> slack_ordered;
+    // slack_ordered.resize(2, ROBOTS_NUM-1);
+    
+    std::vector<std::pair<Eigen::VectorXd, double>> slack_pairs;
+    for (int i = 0; i < distances.size(); i++)
+    {
+        slack_pairs.push_back(std::make_pair(slack.col(i), distances[i]));
+    }
+
+    // sort the vector based on distances
+    std::sort(slack_pairs.begin(), slack_pairs.end(), [](const auto& a, const auto& b){
+        return a.second < b.second;
+    });
+
+    for (int i = 0; i < distances.size(); i++)
+    {
+        p_j_ordered.push_back(pos_pairs[i].first);
+        slack_ordered.push_back(slack_pairs[i].first);
+    }
+
+    // calculate hqp slack variable
+    Eigen::VectorXd hqp_slack = hqp_solver.solve(p_j_ordered);
+    // std::cout << "HQP slack: \n" << hqp_slack.transpose() << "\n";
+
+    // backwards conversion to Eigen::MatrixXd
+    Eigen::MatrixXd p_j_mat, slack_mat;
+    p_j_mat.resize(3, ROBOTS_NUM-1);
+    slack_mat.resize(4, ROBOTS_NUM-1);
+    for (int i = 0; i < distances.size(); i++)
+    {
+        p_j_mat.col(i) = p_j_ordered[i];
+        slack_mat.col(i) = slack_ordered[i] + hqp_slack.block<4,1>(4*i,0);
+    }
+    ---------------------------------------------------------------------------*/
+
+
+
+
+    // std::cout << "Starting Voronoi calculation... \n";
     // ------------------------------- Voronoi -------------------------------
     // Get detected or estimated position of neighbors in local coordinates
     Box<double> AreaBox{AREA_LEFT, AREA_BOTTOM, AREA_SIZE_x + AREA_LEFT, AREA_SIZE_y + AREA_BOTTOM};
-    Box<double> RangeBox{-ROBOT_RANGE, -ROBOT_RANGE, ROBOT_RANGE, ROBOT_RANGE};
-    std::vector<double> VARs = {2.0};
+    Box<double> RangeBox{ROBOT_RANGE, ROBOT_RANGE, ROBOT_RANGE, ROBOT_RANGE};
+    std::vector<double> VARs = {1.0};
     std::vector<Vector2<double>> MEANs = {{GAUSSIAN_MEAN_PT(0), GAUSSIAN_MEAN_PT(1)}};
     double vel_x=0, vel_y=0;
 
@@ -673,84 +1240,87 @@ void Controller::cbf_coverage()
     local_points.push_back(p);
     // Vector2<double> p_local = {0.0, 0.0};
     // local_points.push_back(p_local);
-    for (int i = 0; i < gmm_.getMeans().size(); i++)
+    for (int i = 0; i < ROBOTS_NUM-1; i++)
     {
-        Vector2<double> p_local = {gmm_.getMeans()[i](0) - p.x, gmm_.getMeans()[i](1) - p.y};
+        Vector2<double> p_local = {filters[i]->getMean()(0) - p.x, filters[i]->getMean()(1) - p.y};
         local_points.push_back(p_local);
     }
 
-    std::cout << "Generating decentralized diagram.\n";
+    // std::cout << "Generating decentralized diagram.\n";
     auto diagram = generateDecentralizedDiagram(local_points, RangeBox, p, ROBOT_RANGE, AreaBox);
-    std::cout << "Diagram generated. Calculating centroid.\n";
+    // std::cout << "Diagram generated. Calculating centroid.\n";
     Vector2<double> centroid = computePolygonCentroid(diagram, MEANs, VARs);
-    std::cout << "Centroid: " << centroid.x << ", " << centroid.y << "\n";
+    // std::cout << "Centroid: " << centroid.x << ", " << centroid.y << "\n";
     Eigen::Vector2d centroid_eigen = {this->pose_x(ROBOT_ID)+centroid.x, this->pose_y(ROBOT_ID)+centroid.y};
+    Eigen::Vector2d centroid_local = R_w_i.block<2,2>(0,0).transpose() * (centroid_eigen - robot.head(2));
+    // std::cout << "Local position of centroid for robot " << ROBOT_ID << ": " << centroid_local.transpose() << "\n";
+    // std::cout << "Global position of centroid: " << centroid_eigen.transpose() << std::endl;
     // centroid_local(0) = centroid.x * cos(this->pose_theta(ROBOT_ID)) + centroid.y * sin(this->pose_theta(ROBOT_ID));
     // centroid_local(1) = -centroid.x * sin(this->pose_theta(ROBOT_ID)) + centroid.y * cos(this->pose_theta(ROBOT_ID));
     // std::cout << "Local coordinates centroid: " << centroid_local.transpose() << "\n";
 
-    // Get minimum mahalanobis distance and corresponding index
-    double min_dist = *std::min_element(distances.begin(), distances.end());
-    int index = find(distances.begin(), distances.end(), min_dist) - distances.begin();
-    std::cout << "Minimum distance is " << min_dist << " from robot " << index << "\n";
-
-    // Calculate alpha
-    double alpha = min_dist/dist_lim;
-    if (alpha > 1.0) 
-    {
-        alpha = 1.0;
-    } else if (alpha < 0.0)
-    {
-        alpha = 0.0;
-    }
-    std::cout << "Alpha: " << alpha << "\n";
-
-    // Eigen::Vector3d uopt;
-    // if (min_dist > 0)
-    // {
-    //     // Get gradient of V(x)
-    //     Eigen::VectorXd grad = gradV(robot, gmm_.getMeans()[index], centroid_eigen, gmm_.getCovariances()[index], alpha);
-    //     std::cout << "Gradient: " << grad.transpose() << "\n";
-    //     // Get optimal control input as u(x) = -K(x)*gradV(x)
-    //     uopt = -Kopt * grad;
-    //     uopt = boundVel(uopt);
-    // } else
-    // {
-    //     uopt(0) = 0.8 * centroid_eigen(0);
-    //     uopt(1) = 0.8 * centroid_eigen(1);
-    //     uopt(2) = 0.0;
-    //     uopt = boundVel(uopt);
-    // }
-
+    
     Eigen::Vector3d udes;
-    udes << 0.8 * (centroid_eigen(0) - this->pose_x(ROBOT_ID)), 0.8 * (centroid_eigen(1) - this->pose_y(ROBOT_ID)), atan2(centroid_eigen(1) - this->pose_y(ROBOT_ID), centroid_eigen(0) - this->pose_x(ROBOT_ID));
-    // Get gradient of V(x)
-    // Eigen::VectorXd grad = gradV(robot, gmm_.getMeans()[index], centroid_eigen, gmm_.getCovariances()[index], alpha);
-    // Eigen::VectorXd grad = gradV2(robot, gmm_.getMeans(), centroid_eigen, gmm_.getCovariances(), alpha);
-    // std::cout << "Gradient: " << grad.transpose() << "\n";
-    // // Get optimal control input as u(x) = -K(x)*gradV(x)
-    // udes = -Kopt * grad;
-    // udes = 0.8 * (grad - robot);
-    // Apply CBF for safety
-    // target = p_j_i.col(index);
-    // target.col(1) = p_j_i.col(index);
-    Eigen::Vector3d uopt, uopt_loc;
-    Eigen::Vector3d udes_loc = R_w_i * udes;
-    if (min_dist < SAFETY_DIST)
+    double head_des = atan2(centroid_eigen(1), centroid_eigen(0));
+    double head_err = head_des - this->pose_theta(ROBOT_ID);
+    udes(0) = 0.8 * centroid.x;
+    udes(1) = 0.8 * centroid.y;
+    udes(2) = head_err;
+
+    udes = boundVel(udes);
+    
+
+    // Eigen::Vector3d udes;
+    // double head_des = atan2(centroid_eigen(1), centroid_eigen(0));
+    // double head_err = head_des - this->pose_theta(ROBOT_ID);
+    // double vx = std::max(0.0, 0.8 * centroid_local(0));
+    // double vy = std::max(0.0, 0.8 * centroid_local(1));
+    // double w = 0.8 * head_err;
+    // Eigen::Vector3d udes_loc = {vx, 0.0, w};
+
+    Eigen::Vector3d uopt, uopt_loc, utemp, utemp_loc;
+    Eigen::Vector3d udes_loc = R_w_i.transpose() * udes;
+    // std::cout << "Local position of centroid: " << centroid_local.transpose() << "\n";
+    std::cout << "Desired local velocity for robot " << this->ROBOT_ID <<": " << udes_loc.transpose() << "\n";
+    // std::cout  << "Slack variables matrix: \n--------------------------\n" << slack.transpose() << "\n--------------------------------\n";
+
+    // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! p_j_est !!!!!!!!!!!!!!!!!!!
+    if (!fow_controller.applyCbfSingle(utemp_loc, h_tmp, udes_loc, robot, ROBOTS_NUM-1, p_j_est, slack))              // slack variables equal to 0 in dangerous conditions -> hard constraint 
     {
-        slack.col(index).setZero();
-        fow_controller.applyCbfSingle(uopt_loc, h, udes_loc, robot, ROBOTS_NUM-1, p_j_est, slack);              // if dangerous condition, search for the neighbor with the minimum distance
-        uopt = R_w_i.transpose() * uopt_loc;
+        // utemp = R_w_i.transpose() * utemp_loc;
+        utemp = R_w_i * utemp_loc;
+        std::cout << "Desired control input: " << udes.transpose() << "\n";
+
+        if (SAVE_LOGS)
+        {
+            std::string txt;
+            for (int i = 0; i < ROBOTS_NUM-1; i++)
+            {
+                txt = txt + std::to_string(distances[i]) + " " + std::to_string(h_tmp(ROBOTS_NUM*i)) + " " + std::to_string(h_tmp(ROBOTS_NUM*i+1)) + " " + std::to_string(h_tmp(ROBOTS_NUM*i+2)) + " " + std::to_string(h_tmp(ROBOTS_NUM*i+3)) + " " + std::to_string(slack(0,i)) + " " + std::to_string(slack(1,i)) + " " + std::to_string(slack(2,i)) + " " + std::to_string(slack(3,i)) + "\n";
+            }
+            this->write_log_file(txt);
+        }
+
+        // uopt = utemp;
+        uopt = boundVel(utemp);
     } else
     {
+        ROS_WARN("SAFETY CBF FAILED");
         uopt = udes;
     }
+
+
     
+    // std::cout << "Optimal control input: " << uopt.transpose() << "\n";
+    // // utemp = boundVel(utemp);
     
-    std::cout << "Desired control input: " << udes.transpose() << "\n";
-    std::cout << "Optimal control input (unbounded): " << uopt.transpose() << "\n";
-    uopt = boundVel(uopt);
-    
+
+    if (uopt.head(2).norm() < CONVERGENCE_TOLERANCE)
+    {
+        std::cout << "Converged\n";
+        uopt.head(2).setZero();
+    }
+
     // std::vector<double> margins(ROBOTS_NUM-1);
     // std::fill(margins.begin(), margins.end(), 0.0);
     // safety_controller.applyCbfLocal(uopt, h, udes_loc, p_j_i, margins);
@@ -763,22 +1333,7 @@ void Controller::cbf_coverage()
     vel_msg.twist.angular.z = uopt(2);
     this->velPub_[0].publish(vel_msg);
 
-    // Apply CBF
-    // Eigen::Vector3d uopt;
-    // geometry_msgs::TwistStamped vel_msg;
-    // vel_msg.header.frame_id = "/hummingbird" + std::to_string(ROBOT_ID) + "/base_link";
-    // if(!safety_controller.applyCbfLocal(uopt,h,ustar,p_j_i,distances))
-    //     {        
-    //         vel_msg.twist.linear.x = uopt(0);
-    //         vel_msg.twist.linear.y = uopt(1);
-    //         vel_msg.twist.angular.z = uopt(2);
-    //         this->velPub_[0].publish(vel_msg);
-    //         ROS_INFO("CBF SUCCESS");
-    //     }
-    //     else{
-    //         ROS_INFO("CBF FAILED");
-    //         ROS_ERROR("CBF FAILED");
-    //     }
+    
 
 
     if ((GRAPHICS_ON) && (this->app_gui->isOpen()))
@@ -787,9 +1342,9 @@ void Controller::cbf_coverage()
         std::vector<Vector2<double>> mean_points_vec2;
         Vector2<double> n = {this->pose_x(ROBOT_ID), this->pose_y(ROBOT_ID)};
         mean_points_vec2.push_back(n);
-        for (int j = 0; j < gmm_.getMeans().size(); j++)
+        for (int j = 0; j < ROBOTS_NUM-1; j++)
         {
-            Vector2<double> mp = {gmm_.getMeans()[j](0), gmm_.getMeans()[j](1)};
+            Vector2<double> mp = {filters[j]->getMean()(0), filters[j]->getMean()(1)};
             mean_points_vec2.push_back(mp);
             this->app_gui->drawPoint(mp, sf::Color(0,0,255));
         }
@@ -902,7 +1457,11 @@ Eigen::VectorXd Controller::gradient_descent(Eigen::VectorXd q, std::vector<Eige
     return q_next;
 }
 
-
+double Controller::sigmoid(double x)
+{
+    double v = 1 / (1 + exp(-x));
+    return v;
+}
 
 
 void Controller::test_print()
@@ -1049,6 +1608,26 @@ Eigen::VectorXd Controller::boundVel(Eigen::VectorXd u)
     return u;
 }
 
+Eigen::VectorXd Controller::boundVelprop(Eigen::VectorXd u)
+{
+    int id;
+    if (u(0) > u(1))
+    {
+        id = 0;
+    } else
+    {
+        id = 1;
+    }
+
+    if (u(id) > MAX_LIN_VEL)
+    {
+        double m = u(id) / MAX_LIN_VEL;
+        u = u / m;
+    }
+
+    return u;
+}
+
 
 Eigen::VectorXd Controller::predictVelocity(Eigen::VectorXd q, Eigen::VectorXd goal)
 {
@@ -1080,6 +1659,38 @@ Eigen::VectorXd Controller::predictVelocity(Eigen::VectorXd q, Eigen::VectorXd g
 
     return u;
 }
+
+Eigen::VectorXd Controller::predictCentrVel(Eigen::VectorXd q, Vector2<double> goal)
+{
+    Eigen::VectorXd u(2);
+    double K_gain = 1.0;
+    u(0) = K_gain * (goal.x - q(0));
+    u(1) = K_gain * (goal.y - q(1));
+
+    if (sqrt(pow(goal.x - q(0),2) + pow(goal.y - q(1),2)) < CONVERGENCE_TOLERANCE)
+    {
+        u(0) = 0;
+        u(1) = 0;
+    }
+
+    if (u(0) > MAX_LIN_VEL)
+    {
+        u(0) = MAX_LIN_VEL;
+    } else if (u(0) < -MAX_LIN_VEL)
+    {
+        u(0) = -MAX_LIN_VEL;
+    }
+    if (u(1) > MAX_LIN_VEL)
+    {
+        u(1) = MAX_LIN_VEL;
+    } else if (u(1) < -MAX_LIN_VEL)
+    {
+        u(1) = -MAX_LIN_VEL;
+    }
+
+    return u;
+}
+
 
 void Controller::vel_callback(const geometry_msgs::Twist::ConstPtr &msg)
 {
@@ -1245,8 +1856,6 @@ bool Controller::isOut(Eigen::VectorXd sample, Eigen::VectorXd mean, Eigen::Matr
         }
     }
 }
-
-
 
 
 
