@@ -86,7 +86,7 @@ class Controller
 {
 
 public:
-    Controller() : nh_priv_("~"), gmm_(), fow_controller(2.0944, SAFETY_DIST, ROBOT_RANGE, ROBOTS_NUM-1), hqp_solver(2.0944, SAFETY_DIST, ROBOT_RANGE, ROBOTS_NUM-1)
+    Controller() : nh_priv_("~"), fow_controller(2.0944, SAFETY_DIST, ROBOT_RANGE, ROBOTS_NUM-1), hqp_solver(2.0944, SAFETY_DIST, ROBOT_RANGE, ROBOTS_NUM-1)
     {
         //------------------------------------------------- ROS parameters ---------------------------------------------------------
         this->nh_priv_.getParam("ROBOTS_NUM", ROBOTS_NUM);
@@ -117,7 +117,7 @@ public:
         this->nh_priv_.getParam("GAUSS_Y", GAUSS_Y);
         
         this->nh_priv_.getParam("SAVE_LOGS", SAVE_LOGS);
-
+        this->nh_priv_.getParam("SAVE_CPU_TIME", SAVE_CPU_TIME);
 
     //--------------------------------------------------- Subscribers and Publishers ----------------------------------------------------
     for (int i = 0; i < ROBOTS_NUM; i++)
@@ -168,20 +168,37 @@ public:
     slack_max(2) = 0.0;                         // safety constraint is always hard
     slack_max(3) = -(pow(AREA_SIZE_x,2) + pow(AREA_SIZE_y,2)) + pow(ROBOT_RANGE,2);
     slack_max = slack_max.cwiseAbs();
-    std::cout << "============ SLACK SATURATION VALUES ================\n" << slack_max.transpose() << "\n==========================\n";
+    std::cout << "============ SLACK SATURATION VALUES =================\n" << slack_max.transpose() << "\n==========================\n";
 
     fow_controller.setVerbose(false);
     // safety_controller.setVerbose(false);
     hqp_solver.setVerbose(false);
 
+    parts = std::round(PARTICLES_NUM/(ROBOTS_NUM-1));
     for (int i = 0; i < ROBOTS_NUM - 1; i++)
     {
-        ParticleFilter *filter = new ParticleFilter(PARTICLES_NUM, Eigen::Vector3d::Zero(), 10*Eigen::Vector3d::Ones());
+        // if (i == 9)
+        // {
+        //     ParticleFilter *filter = new ParticleFilter(parts, -10*Eigen::Vector3d::Ones(), 10*Eigen::Vector3d::Ones());
+        //     filters.push_back(filter);
+        // } else if (i == 6)
+        // {
+        //     ParticleFilter *filter = new ParticleFilter(parts, 10*Eigen::Vector3d::Ones(), 10*Eigen::Vector3d::Ones());
+        //     filters.push_back(filter);
+        // } else
+        // {
+        //     ParticleFilter *filter = new ParticleFilter(parts, Eigen::Vector3d::Zero(), 10*Eigen::Vector3d::Ones());
+        //     filters.push_back(filter);
+        // }
+
+        ParticleFilter *filter = new ParticleFilter(parts, Eigen::Vector3d::Zero(), 10*Eigen::Vector3d::Ones());
         filters.push_back(filter);
     }
 
 	// this->got_gmm = false;
     std::cout << "Hi! I'm robot number " << ROBOT_ID << std::endl;
+
+    justStarted.resize(ROBOTS_NUM, true);
 
     // std::cout << "Initial set of mean points for GMM: " << std::endl;
     // for (int i = 0; i < gmm_.getMeans().size(); i++)
@@ -198,22 +215,45 @@ public:
         app_gui.reset(new Graphics{AREA_SIZE_x, AREA_SIZE_y, AREA_LEFT, AREA_BOTTOM, 2.0});
     }
 
-    if (SAVE_LOGS)
+    if (SAVE_LOGS || SAVE_CPU_TIME)
     {
-        open_log_file();
+        // for (int i = 0; i < ROBOTS_NUM - 1; i++)
+        // {
+        //     std::ofstream log_f;
+        //     this->log_files.push_back(log_f);
+        // }
+
+        // fill vector with log files
+        // this->log_files.resize(ROBOTS_NUM-1);
+        // std::ofstream log_f;
+        // for (int i = 0; i < ROBOTS_NUM-1; i++)
+        // {
+        //     this->log_files[i] = std::move(log_f);
+        // }
+
+        // for (int i = 0; i < ROBOTS_NUM-1; i++)
+        // {
+        //     open_log_file();
+        // }
+        this->open_log_file();
     }
 
     // std::cout << "Input : " << filter->getInput().transpose() << std::endl;
     }
     ~Controller()
     {
-        if ((GRAPHICS_ON) && (this->app_gui->isOpen())){this->app_gui->close();}
+        if ((GRAPHICS_ON || SAVE_CPU_TIME) && (this->app_gui->isOpen())){this->app_gui->close();}
         std::cout<<"DESTROYER HAS BEEN CALLED"<<std::endl;
 
-        if(SAVE_LOGS)
+        if(SAVE_LOGS || SAVE_CPU_TIME)
         {
-            close_log_file();
-            std::cout << "LOG FILE HAS BEEN CLOSED" << std::endl;
+            // for (int i = 0; i < ROBOTS_NUM-1; i++)
+            // {
+            //     close_log_file();
+            //     std::cout << "LOG FILE HAS BEEN CLOSED" << std::endl;
+            // }
+            this->close_log_file();
+            
         }
     }
 
@@ -245,7 +285,7 @@ public:
     Eigen::VectorXd gradV2(Eigen::VectorXd q, std::vector<Eigen::VectorXd> means, Eigen::VectorXd x_goal, std::vector<Eigen::MatrixXd> cov, double alpha);
     double sigmoid(double x);
 
-    int PARTICLES_NUM = 500;
+    int PARTICLES_NUM = 10000;
     
     //open write and close LOG file
     void open_log_file();
@@ -254,11 +294,12 @@ public:
 
 
 
+
 private:
-    int ROBOTS_NUM = 6;
-    double ROBOT_RANGE = 15.0;
+    int ROBOTS_NUM = 12;
+    double ROBOT_RANGE = 100.0;
     int ROBOT_ID = 0;
-    double ROBOT_FOV = 150.0;
+    double ROBOT_FOV = 360.0;
     int MODE = 0;
     double GOAL_X = 10.0;
     double GOAL_Y = 10.0;
@@ -285,6 +326,9 @@ private:
     double dt = 0.2;
     std::vector<bool> justLost;
     Eigen::Matrix3d Kopt;
+    int parts;
+    std::vector<bool> justStarted;
+
 
     //------------------------------- Ros NodeHandle ------------------------------------
     ros::NodeHandle nh_;
@@ -301,7 +345,7 @@ private:
     // ------------------------------- Particle Filter ----------------------------------
     std::vector<ParticleFilter *> filters;
     // ParticleFilter filter;
-    GaussianMixtureModel gmm_;
+    // GaussianMixtureModel gmm_;
 
     // ------------------------------- Safety Controller ---------------------------------
     // safety_control::SafetyController safety_controller;
@@ -326,10 +370,10 @@ private:
     //------------------------------------------------------------------------------------
 
     //---------------------------- Environment definition --------------------------------
-    double AREA_SIZE_x = 20.0;
-    double AREA_SIZE_y = 20.0;
-    double AREA_LEFT = -10.0;
-    double AREA_BOTTOM = -10.0;
+    double AREA_SIZE_x = 40.0;
+    double AREA_SIZE_y = 40.0;
+    double AREA_LEFT = -20.0;
+    double AREA_BOTTOM = -20.0;
     //------------------------------------------------------------------------------------
 
     //---------------------- Gaussian Density Function parameters ------------------------
@@ -345,12 +389,14 @@ private:
     bool GRAPHICS_ON = true;
 
     bool SAVE_LOGS = false;
+    bool SAVE_CPU_TIME = false;
 
     //timer - check how long robots are being stopped
     time_t timer_init_count;
     time_t timer_final_count;
 
     std::ofstream log_file;
+    std::vector<std::ofstream> log_files;
 
     int counter = 0;
 
@@ -367,17 +413,19 @@ void Controller::open_log_file()
     std::string dir_str(dir);
 
     std::cout << "Directory: " << dir_str << std::endl;
-
-    if (IsPathExist(dir_str + "/pf_logs"))     //check if the folder exists
+    std::string dir_path = dir_str + "/pf_logs-" + std::to_string(ROBOT_ID); //+"-"+std::to_string(id);
+    if (IsPathExist(dir_path))     //check if the folder exists
     {
-        strftime (buffer,80,"/pf_logs/%Y_%m_%d_%H-%M_logfile.txt",now);
+        strftime (buffer,80,"/%Y_%m_%d_%H-%M_logfile.txt", now);
     } else {
-        system(("mkdir " + (dir_str + "/pf_logs")).c_str());
-        strftime (buffer,80,"/pf_logs/%Y_%m_%d_%H-%M_logfile.txt",now);
+        system(("mkdir " + dir_path).c_str()); //+"-"+std::to_string(id)).c_str());
+        strftime (buffer,80,"/%Y_%m_%d_%H-%M_logfile.txt",now);
     }
 
-    std::cout<<"file name :: "<<dir_str + buffer<<std::endl;
-    this->log_file.open(dir_str + buffer,std::ofstream::app);
+    std::cout<<"file name :: "<<dir_path + buffer<<std::endl;
+    // this->log_file.open(dir_path + buffer,std::ofstream::app);
+    this->log_file.open(dir_path + buffer,std::ofstream::app);
+    // this->log_file << "Robot " << ROBOT_ID << " log file\n";
 }
 
 void Controller::write_log_file(std::string text)
@@ -385,6 +433,7 @@ void Controller::write_log_file(std::string text)
     if (this->log_file.is_open())
     {
         this->log_file << text;
+        this->log_file.flush();
     }
 }
 
@@ -595,10 +644,10 @@ void Controller::cbf_coverage()
 
     if (!this->got_gmm)
     {
-        gmm_.setMeans(obs);
-        gmm_.setCovariances(cov);
-        gmm_.setWeights(ws);
-        gmm_.check();
+        // gmm_.setMeans(obs);
+        // gmm_.setCovariances(cov);
+        // gmm_.setWeights(ws);
+        // gmm_.check();
         // filter.setParticles(samples_vec);
         
         this->got_gmm = true;
@@ -638,6 +687,7 @@ void Controller::cbf_coverage()
     std::vector<double> distances(ROBOTS_NUM-1);
     for (int i = 0; i < ROBOTS_NUM-1; i++)
     {
+        std::string pf_txt;
         Eigen::VectorXd mean = filters[i]->getMean();
         // std::cout << "Neighbor " << i << " estimated position: " << mean.transpose() << std::endl;
         double dist_x = mean(0) - this->pose_x(ROBOT_ID);
@@ -656,6 +706,8 @@ void Controller::cbf_coverage()
                 // std::cout << "Eigenvalues: \n" << eigenvalues.transpose() << "\n";
                 Eigen::MatrixXd eigenvectors = es.eigenvectors().real();
                 // std::cout << "Eigenvectors: \n" << eigenvectors.transpose() << "\n";
+
+
                 
                 // s = 4.605 for 90% confidence interval
                 // s = 5.991 for 95% confidence interval
@@ -848,15 +900,15 @@ void Controller::cbf_coverage()
         utemp = R_w_i.transpose() * utemp_loc;
         // std::cout << "Desired control input: " << udes.transpose() << "\n";
 
-        if (SAVE_LOGS)
-        {
-            std::string txt;
-            for (int i = 0; i < ROBOTS_NUM-1; i++)
-            {
-                txt = txt + std::to_string(distances[i]) + " " + std::to_string(h_tmp(ROBOTS_NUM*i)) + " " + std::to_string(h_tmp(ROBOTS_NUM*i+1)) + " " + std::to_string(h_tmp(ROBOTS_NUM*i+2)) + " " + std::to_string(h_tmp(ROBOTS_NUM*i+3)) + " " + std::to_string(slack(0,i)) + " " + std::to_string(slack(1,i)) + " " + std::to_string(slack(2,i)) + " " + std::to_string(slack(3,i)) + "\n";
-            }
-            this->write_log_file(txt);
-        }
+        // if (SAVE_LOGS)
+        // {
+        //     std::string txt;
+        //     for (int i = 0; i < ROBOTS_NUM-1; i++)
+        //     {
+        //         txt = txt + std::to_string(distances[i]) + " " + std::to_string(h_tmp(ROBOTS_NUM*i)) + " " + std::to_string(h_tmp(ROBOTS_NUM*i+1)) + " " + std::to_string(h_tmp(ROBOTS_NUM*i+2)) + " " + std::to_string(h_tmp(ROBOTS_NUM*i+3)) + " " + std::to_string(slack(0,i)) + " " + std::to_string(slack(1,i)) + " " + std::to_string(slack(2,i)) + " " + std::to_string(slack(3,i)) + "\n";
+        //     }
+        //     this->write_log_file(txt);
+        // }
 
         // uopt = utemp;
         uopt = boundVel(utemp);
@@ -926,7 +978,7 @@ void Controller::cbf_coverage2()
     Eigen::Vector3d processCovariance = 0.5*Eigen::Vector3d::Ones();
     Eigen::Vector3d robot;                           // controlled robot's global position
     robot << this->pose_x(ROBOT_ID), this->pose_y(ROBOT_ID), this->pose_theta(ROBOT_ID);
-    Eigen::MatrixXd samples(3, PARTICLES_NUM);          // particles' global position
+    Eigen::MatrixXd samples(3, parts);          // particles' global position
     std::vector<Eigen::VectorXd> samples_vec;
     std::vector<bool> detected(ROBOTS_NUM-1, false);      // vector of detected robots
     int detected_counter = 0;                           // number of detected robots
@@ -937,6 +989,7 @@ void Controller::cbf_coverage2()
     slack.setOnes();
     slack = 100000*slack;
     slack.row(2).setZero();
+    Eigen::Matrix2d cov_rel;
 
     slack_neg.setZero();
     // slack.setZero();
@@ -946,6 +999,17 @@ void Controller::cbf_coverage2()
     R_w_i << cos(this->pose_theta(ROBOT_ID)), -sin(this->pose_theta(ROBOT_ID)), 0,
              sin(this->pose_theta(ROBOT_ID)), cos(this->pose_theta(ROBOT_ID)), 0,
              0, 0, 1;
+
+    if (SAVE_LOGS)
+    {
+        std::string txt;
+        // txt = txt + std::to_string(this->pose_x(ROBOT_ID)) + " " + std::to_string(this->pose_y(ROBOT_ID)) + "\n";
+        for (int i = 0; i < ROBOTS_NUM; i++)
+        {
+            txt = txt + std::to_string(this->realpose_x(i)-GAUSS_X) + " " + std::to_string(this->realpose_y(i)-GAUSS_Y) + "\n";
+        }
+        this->write_log_file(txt);
+    }
 
     for (int j = 0; j < ROBOTS_NUM; j++)
     {
@@ -975,6 +1039,7 @@ void Controller::cbf_coverage2()
                 // Case 1: robot detected --- define particles with small covariance around the detected position
                 // Estimate velocity of the lost robot for coverage
                 Eigen::VectorXd q_est = filters[c]->getMean();
+            
                 
                 // std::cout << "Estimated state: " << q_est.transpose() << std::endl;
                 Eigen::Vector2d u_ax = predictVelocity(q_est, GAUSSIAN_MEAN_PT);                        // get linear velocity [vx, vy] moving towards me
@@ -1027,10 +1092,10 @@ void Controller::cbf_coverage2()
 
     if (!this->got_gmm)
     {
-        gmm_.setMeans(obs);
-        gmm_.setCovariances(cov);
-        gmm_.setWeights(ws);
-        gmm_.check();
+        // gmm_.setMeans(obs);
+        // gmm_.setCovariances(cov);
+        // gmm_.setWeights(ws);
+        // gmm_.check();
         // filter.setParticles(samples_vec);
         
         this->got_gmm = true;
@@ -1089,6 +1154,17 @@ void Controller::cbf_coverage2()
                 // std::cout << "Eigenvalues: \n" << eigenvalues.transpose() << "\n";
                 Eigen::MatrixXd eigenvectors = es.eigenvectors().real();
                 // std::cout << "Eigenvectors: \n" << eigenvectors.transpose() << "\n";
+
+                // Convert covariance matrix to local frame
+                cov_rel = R_w_i.block<2,2>(0,0).transpose() * cov_matrix.block<2,2>(0,0) * R_w_i.block<2,2>(0,0);
+
+                // Write mean point (relative) and covariance matrix in log file
+                // if (SAVE_LOGS)
+                // {
+                //     std::string pf_txt;
+                //     pf_txt = pf_txt + std::to_string(p_j_est(0,i)) + " " + std::to_string(p_j_est(1,i)) + " " + std::to_string(cov_rel(0,0)) + " " + std::to_string(cov_rel(0,1)) + " " + std::to_string(cov_rel(1,0)) + " " + std::to_string(cov_rel(1,1)) + "\n"; 
+                //     this->write_log_file(pf_txt, i);
+                // }
                 
                 // s = 4.605 for 90% confidence interval
                 // s = 5.991 for 95% confidence interval
@@ -1163,15 +1239,55 @@ void Controller::cbf_coverage2()
     for (int i = 0; i < distances.size(); i++)
     {
         // slack.col(i) =  slack_max.cwiseProduct(sigmoid(2*(distances[i] - 2*SAFETY_DIST)) * Eigen::VectorXd::Ones(4)) + slack_neg.col(i);
-        slack.col(i) =  slack_max.cwiseProduct(sigmoid(distances[i] - 3*dist_lim) * Eigen::VectorXd::Ones(4)) + slack_neg.col(i);
+        slack.col(i) =  slack_max.cwiseProduct(sigmoid(distances[i] - 3*dist_lim) * Eigen::VectorXd::Ones(4)); // + slack_neg.col(i);
     }
 
     // slack.row(3) = 100000 * Eigen::VectorXd::Ones(ROBOTS_NUM-1);
 
+    // Sort neighbors based on distance and update number of particles
+    std::vector<std::pair<double, int>> dist_index;
+    for (int i = 0; i < distances.size(); i++)
+    {
+        dist_index.push_back(std::make_pair(distances[i], i));
+    }
+    std::sort(dist_index.begin(), dist_index.end(), [](const auto& a, const auto& b){
+        return a.first < b.first;
+    });
+
+    int elems = std::round((ROBOTS_NUM-1)/3);            // number of elements in each partition (1/3 of total)
+    for (int i = 0; i < elems; i++)
+    {
+        int id = dist_index[i].second;
+        int p_num = std::round(0.5 * PARTICLES_NUM / elems);
+        if (p_num != filters[id]->getParticlesNumber())
+        {
+            filters[id]->updateParticlesNumber(p_num);
+        }
+    }
+    for (int i = elems; i < 2*elems; i++)
+    {
+        int id = dist_index[i].second;
+        int p_num = std::round(0.3 * PARTICLES_NUM / elems);
+        if (p_num != filters[id]->getParticlesNumber())
+        {
+            filters[id]->updateParticlesNumber(p_num);
+        }
+        
+    }
+    for (int i = 2*elems; i < ROBOTS_NUM-1; i++)
+    {
+        int id = dist_index[i].second;
+        int p_num = std::round(0.2 * PARTICLES_NUM / elems);
+        if (p_num != filters[id]->getParticlesNumber())
+        {
+            filters[id]->updateParticlesNumber(p_num);
+        }
+    }
+
     
     // std::cout << "Slack variables: \n" << slack << "\n";
 
-    /* --------------------- HQP SLACK VARIABLES CALCULATION ----------------------------------------
+    // --------------------- HQP SLACK VARIABLES CALCULATION ----------------------------------------
     std::vector<Eigen::VectorXd> p_j_ordered;
     // p_j_ordered.resize(2, ROBOTS_NUM-1);
     
@@ -1186,7 +1302,6 @@ void Controller::cbf_coverage2()
     std::sort(pos_pairs.begin(), pos_pairs.end(), [](const auto& a, const auto& b){
         return a.second < b.second;
     });
-
 
     std::vector<Eigen::VectorXd> slack_ordered;
     // slack_ordered.resize(2, ROBOTS_NUM-1);
@@ -1221,12 +1336,10 @@ void Controller::cbf_coverage2()
         p_j_mat.col(i) = p_j_ordered[i];
         slack_mat.col(i) = slack_ordered[i] + hqp_slack.block<4,1>(4*i,0);
     }
-    ---------------------------------------------------------------------------*/
+    //---------------------------------------------------------------------------
 
 
-
-
-    // std::cout << "Starting Voronoi calculation... \n";
+    std::cout << "Starting Voronoi calculation... \n";
     // ------------------------------- Voronoi -------------------------------
     // Get detected or estimated position of neighbors in local coordinates
     Box<double> AreaBox{AREA_LEFT, AREA_BOTTOM, AREA_SIZE_x + AREA_LEFT, AREA_SIZE_y + AREA_BOTTOM};
@@ -1281,28 +1394,19 @@ void Controller::cbf_coverage2()
     Eigen::Vector3d uopt, uopt_loc, utemp, utemp_loc;
     Eigen::Vector3d udes_loc = R_w_i.transpose() * udes;
     // std::cout << "Local position of centroid: " << centroid_local.transpose() << "\n";
-    std::cout << "Desired local velocity for robot " << this->ROBOT_ID <<": " << udes_loc.transpose() << "\n";
+    // std::cout << "Desired local velocity for robot " << this->ROBOT_ID <<": " << udes_loc.transpose() << "\n";
     // std::cout  << "Slack variables matrix: \n--------------------------\n" << slack.transpose() << "\n--------------------------------\n";
 
     // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! p_j_est !!!!!!!!!!!!!!!!!!!
-    if (!fow_controller.applyCbfSingle(utemp_loc, h_tmp, udes_loc, robot, ROBOTS_NUM-1, p_j_est, slack))              // slack variables equal to 0 in dangerous conditions -> hard constraint 
+    if (!fow_controller.applyCbfSingle(utemp_loc, h_tmp, udes_loc, robot, ROBOTS_NUM-1, p_j_mat, slack_mat))              // slack variables equal to 0 in dangerous conditions -> hard constraint 
     {
         // utemp = R_w_i.transpose() * utemp_loc;
         utemp = R_w_i * utemp_loc;
         std::cout << "Desired control input: " << udes.transpose() << "\n";
 
-        if (SAVE_LOGS)
-        {
-            std::string txt;
-            for (int i = 0; i < ROBOTS_NUM-1; i++)
-            {
-                txt = txt + std::to_string(distances[i]) + " " + std::to_string(h_tmp(ROBOTS_NUM*i)) + " " + std::to_string(h_tmp(ROBOTS_NUM*i+1)) + " " + std::to_string(h_tmp(ROBOTS_NUM*i+2)) + " " + std::to_string(h_tmp(ROBOTS_NUM*i+3)) + " " + std::to_string(slack(0,i)) + " " + std::to_string(slack(1,i)) + " " + std::to_string(slack(2,i)) + " " + std::to_string(slack(3,i)) + "\n";
-            }
-            this->write_log_file(txt);
-        }
-
         // uopt = utemp;
         uopt = boundVel(utemp);
+        std::cout << "optimal control input: " << uopt.transpose() << std::endl;
     } else
     {
         ROS_WARN("SAFETY CBF FAILED");
@@ -1333,6 +1437,13 @@ void Controller::cbf_coverage2()
     vel_msg.twist.angular.z = uopt(2);
     this->velPub_[0].publish(vel_msg);
 
+    // if (SAVE_LOGS)
+    // {
+    //     // write velocity of robot(ID)
+    //     std::string txt = std::to_string(uopt(0)) + " " + std::to_string(uopt(1)) + "\n";
+    //     this->write_log_file(txt);
+    // }
+
     
 
 
@@ -1358,8 +1469,15 @@ void Controller::cbf_coverage2()
     // this->velPub_[0].publish(vel_msg);
 
 
+
     auto end = std::chrono::high_resolution_clock::now();
-    std::cout<<"Computation time cost: -----------------: "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - timerstart).count()<<" ms\n";
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - timerstart).count();
+    if (SAVE_CPU_TIME)
+    {
+        std::string txt = std::to_string(duration) + "\n";
+        this->write_log_file(txt);
+    }
+    std::cout<<"Computation time cost: -----------------: "<<duration<<" ms\n";
 }
 
 
@@ -1506,6 +1624,15 @@ void Controller::realposeCallback(const nav_msgs::Odometry::ConstPtr msg, int i)
     m.getRPY(roll, pitch, yaw);
 
     this->realpose_theta(i) = yaw;
+
+    if (this->justStarted[i])
+    {
+        this->pose_x(i) = this->realpose_x(i);
+        this->pose_y(i) = this->realpose_y(i);
+        this->pose_theta(i) = this->realpose_theta(i);
+        this->justStarted[i] = false;
+    }
+
 }
 
 void Controller::odomCallback(const nav_msgs::Odometry::ConstPtr msg)
@@ -1567,7 +1694,7 @@ void Controller::neighCallback(const geometry_msgs::PoseArray::ConstPtr msg)
             int c = j;
             if (j>ROBOT_ID) {c = j-1;}
             p_j_i.col(c) << this->pose_x(j), this->pose_y(j), this->pose_theta(j);
-        } else 
+        } else
         {
             // column of the controlled robot contains its own global position
             p_j.col(j) << this->pose_x(ROBOT_ID), this->pose_y(ROBOT_ID), this->pose_theta(ROBOT_ID);

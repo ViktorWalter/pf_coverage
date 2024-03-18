@@ -736,7 +736,7 @@ Vector2<T> calculateCentroid(const Diagram<T> &polygon, std::vector<Box<T>> Obst
 //ogni elemento viene considerato se appartenente al poligono (inPolygon)
 //per ogni elemento viene calcolato il valore della PDF nel suo baricentro
 template<typename T>
-Vector2<T> computePolygonCentroid(const Diagram<T> &polygon, std::vector<Vector2<T>> pt_means, std::vector<T> vars, double discretize_precision = 1.0/100.0){
+Vector2<T> computePolygonCentroid(const Diagram<T> &polygon, std::vector<Vector2<T>> pt_means, std::vector<T> vars, double discretize_precision = 1.0/20.0){
     //Calcolo p_t in coordinate locali (local_p_t);
     for (long unsigned int i = 0; i < pt_means.size(); ++i)
     {
