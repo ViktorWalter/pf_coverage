@@ -45,12 +45,9 @@
 #include <geometry_msgs/PoseArray.h>
 #include <nav_msgs/Odometry.h>
 #include <std_srvs/Empty.h>
-// #include "kalman_filter/kalman_filter.h"
-// #include "kalman_filter/extended_kalman_filter.h"
-#include "particle_filter/particle_filter.h"
 
-#include <gaussian_mixture_model/gaussian_mixture_model.h>
-#include <safety_control/SafetyController.h>
+// Custom libraries
+#include "particle_filter/particle_filter.h"
 #include <fow_control/FowController.h>
 #include <hqp/Hqp.h>
 
