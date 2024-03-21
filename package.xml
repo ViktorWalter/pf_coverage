@@ -57,6 +57,7 @@
   <depend>particle_filter</depend>
   <depend>GaussianMixtureModel</depend>
   <depend>hqp</depend>
+  <depend>mrs_msgs</depend>
   <buildtool_depend>catkin</buildtool_depend>
   <build_depend>roscpp</build_depend>
   <build_export_depend>roscpp</build_export_depend>

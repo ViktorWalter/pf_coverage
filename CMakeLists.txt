@@ -22,6 +22,9 @@ find_package(fow_control REQUIRED)
 find_package(hqp REQUIRED)
 find_package(OsqpEigen REQUIRED)
 
+find_package(mrs_msgs REQUIRED)
+
+
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 
@@ -114,7 +117,7 @@ find_package(OsqpEigen REQUIRED)
 catkin_package(
  INCLUDE_DIRS include
  LIBRARIES pf_coverage particle_filter fow_control hqp
- CATKIN_DEPENDS roscpp geometry_msgs nav_msgs sensor_msgs tf2 tf2_ros visualization_msgs
+ CATKIN_DEPENDS roscpp geometry_msgs nav_msgs sensor_msgs tf2 tf2_ros visualization_msgs mrs_msgs
  DEPENDS OsqpEigen
 )
 
@@ -147,6 +150,7 @@ set(dependencies
   "visualization_msgs"
   "fow_control"
   "hqp"
+  "mrs_msgs"
 )
 
 set(SFML_libraries
@@ -159,6 +163,17 @@ set(SFML_libraries
 add_executable(cbf_coverage src/cbf_coverage.cpp)
 add_dependencies(cbf_coverage ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(cbf_coverage
+  ${catkin_LIBRARIES}
+  ${particle_filter_LIBRARIES}
+  ${SFML_libraries}
+  ${fow_control_LIBRARIES}
+  ${hqp_LIBRARIES}
+  OsqpEigen::OsqpEigen
+)
+
+add_executable(mrs_pf_coverage src/cbf_coverage.cpp)
+add_dependencies(mrs_pf_coverage ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(mrs_pf_coverage
   ${catkin_LIBRARIES}
   ${particle_filter_LIBRARIES}
   ${SFML_libraries}
