@@ -85,7 +85,7 @@ class Controller
 {
     // 2.0944
 public:
-    Controller() : nh_priv_("~"), vision_controller(2.79, SAFETY_DIST, ROBOT_RANGE, ROBOTS_NUM - 1), hqp_solver(2.79, SAFETY_DIST, ROBOT_RANGE, ROBOTS_NUM - 1)
+    Controller() : nh_priv_("~"), vision_controller(), hqp_solver()
     {
         //------------------------------------------------- ROS parameters ---------------------------------------------------------
         this->nh_priv_.getParam("ROBOTS_NUM", ROBOTS_NUM);
@@ -171,10 +171,13 @@ public:
         std::cout << "============ SLACK SATURATION VALUES =================\n"
                   << slack_max.transpose() << "\n==========================\n";
 
+        vision_controller.init(2.79, SAFETY_DIST, ROBOT_RANGE, ROBOTS_NUM - 1);
         vision_controller.setVerbose(false);
         vision_controller.setVelBounds(-MAX_LIN_VEL, MAX_LIN_VEL);
         vision_controller.setGamma(1.0, 1.0);
         // safety_controller.setVerbose(false);
+
+        hqp_solver.init(2.79, SAFETY_DIST, ROBOT_RANGE, ROBOTS_NUM - 1);
         hqp_solver.setVerbose(false);
 
         parts = std::round(PARTICLES_NUM / (ROBOTS_NUM - 1));
