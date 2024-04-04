@@ -52,8 +52,7 @@
 
 // Custom libraries
 #include "particle_filter/particle_filter.h"
-#include <fow_control/FowController.h>
-#include <formation_control/FormationController.h>
+#include <vision_control/VisionController.h>
 #include <hqp/Hqp.h>
 
 #define M_PI 3.14159265358979323846 /*pi*/
@@ -86,7 +85,7 @@ class Controller
 {
     // 2.0944
 public:
-    Controller() : nh_priv_("~"), formation_controller(2.79, SAFETY_DIST, ROBOT_RANGE, ROBOTS_NUM - 1), hqp_solver(2.79, SAFETY_DIST, ROBOT_RANGE, ROBOTS_NUM - 1)
+    Controller() : nh_priv_("~"), vision_controller(2.79, SAFETY_DIST, ROBOT_RANGE, ROBOTS_NUM - 1), hqp_solver(2.79, SAFETY_DIST, ROBOT_RANGE, ROBOTS_NUM - 1)
     {
         //------------------------------------------------- ROS parameters ---------------------------------------------------------
         this->nh_priv_.getParam("ROBOTS_NUM", ROBOTS_NUM);
@@ -172,9 +171,9 @@ public:
         std::cout << "============ SLACK SATURATION VALUES =================\n"
                   << slack_max.transpose() << "\n==========================\n";
 
-        formation_controller.setVerbose(false);
-        formation_controller.setVelBounds(-MAX_LIN_VEL, MAX_LIN_VEL);
-        formation_controller.setGamma(1.0, 1.0);
+        vision_controller.setVerbose(false);
+        vision_controller.setVelBounds(-MAX_LIN_VEL, MAX_LIN_VEL);
+        vision_controller.setGamma(1.0, 1.0);
         // safety_controller.setVerbose(false);
         hqp_solver.setVerbose(false);
 
@@ -356,7 +355,7 @@ private:
 
     // ------------------------------- Safety Controller ---------------------------------
     // safety_control::SafetyController safety_controller;
-    formation_control::FormationController formation_controller;
+    vision_control::VisionController vision_controller;
     Eigen::VectorXd h, h_tmp;
     Eigen::Vector3d ustar;
     Eigen::Vector3d target;
@@ -965,7 +964,7 @@ void Controller::cbf_coverage2()
     std::cout  << "Slack variables matrix: \n--------------------------\n" << slack.transpose() << "\n--------------------------------\n";
 
     // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! p_j_est !!!!!!!!!!!!!!!!!!!
-    if (!formation_controller.applyCbf(utemp_loc, udes_loc, p_j_mat, slack_mat)) // slack variables equal to 0 in dangerous conditions -> hard constraint
+    if (!vision_controller.applyCbf(utemp_loc, udes_loc, p_j_mat, slack_mat)) // slack variables equal to 0 in dangerous conditions -> hard constraint
     {
         // utemp = R_w_i.transpose() * utemp_loc;
         utemp = R_w_i * utemp_loc;

@@ -55,8 +55,8 @@
   <depend>tf2_ros</depend>
   <depend>visualization_msgs</depend>
   <depend>particle_filter</depend>
-  <depend>formation_control</depend>
-  <depend>GaussianMixtureModel</depend>
+  <depend>vision_control</depend>
+  <!-- <depend>GaussianMixtureModel</depend> -->
   <depend>hqp</depend>
   <depend>mrs_msgs</depend>
   <buildtool_depend>catkin</buildtool_depend>
