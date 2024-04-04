@@ -20,6 +20,7 @@ find_package(SFML REQUIRED COMPONENTS graphics window system)
 find_package(particle_filter REQUIRED)
 find_package(fow_control REQUIRED)
 find_package(hqp REQUIRED)
+find_package(formation_control REQUIRED)
 find_package(OsqpEigen REQUIRED)
 
 find_package(mrs_msgs REQUIRED)
@@ -116,7 +117,7 @@ find_package(mrs_msgs REQUIRED)
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
  INCLUDE_DIRS include
- LIBRARIES pf_coverage particle_filter fow_control hqp
+ LIBRARIES pf_coverage particle_filter fow_control formation_control hqp
  CATKIN_DEPENDS roscpp geometry_msgs nav_msgs sensor_msgs tf2 tf2_ros visualization_msgs mrs_msgs
  DEPENDS OsqpEigen
 )
@@ -132,6 +133,7 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
   ${particle_filter_INCLUDE_DIRS}
   ${fow_control_INCLUDE_DIRS}
+  ${formation_control_INCLUDE_DIRS}
   ${hqp_INCLUDE_DIRS}
 )
 
@@ -149,6 +151,7 @@ set(dependencies
   "particle_filter"
   "visualization_msgs"
   "fow_control"
+  "formation_control"
   "hqp"
   "mrs_msgs"
 )
@@ -171,9 +174,43 @@ target_link_libraries(cbf_coverage
   OsqpEigen::OsqpEigen
 )
 
-add_executable(mrs_pf_coverage src/cbf_coverage.cpp)
+add_executable(mrs_pf_coverage src/mrs_pf_coverage.cpp)
 add_dependencies(mrs_pf_coverage ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(mrs_pf_coverage
+  ${catkin_LIBRARIES}
+  ${particle_filter_LIBRARIES}
+  ${SFML_libraries}
+  ${fow_control_LIBRARIES}
+  ${hqp_LIBRARIES}
+  OsqpEigen::OsqpEigen
+)
+
+add_executable(mrs_pf_coverage2 src/mrs_pf_coverage2.cpp)
+add_dependencies(mrs_pf_coverage2 ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(mrs_pf_coverage2
+  ${catkin_LIBRARIES}
+  ${particle_filter_LIBRARIES}
+  ${SFML_libraries}
+  ${fow_control_LIBRARIES}
+  ${hqp_LIBRARIES}
+  ${formation_control_LIBRARIES}
+  OsqpEigen::OsqpEigen
+)
+
+add_executable(vision_sim src/vision_sim.cpp)
+add_dependencies(vision_sim ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(vision_sim
+  ${catkin_LIBRARIES}
+  ${particle_filter_LIBRARIES}
+  ${SFML_libraries}
+  ${fow_control_LIBRARIES}
+  ${hqp_LIBRARIES}
+  OsqpEigen::OsqpEigen
+)
+
+add_executable(starting_pos src/starting_pos.cpp)
+add_dependencies(starting_pos ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(starting_pos
   ${catkin_LIBRARIES}
   ${particle_filter_LIBRARIES}
   ${SFML_libraries}

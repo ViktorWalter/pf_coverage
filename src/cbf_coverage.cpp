@@ -1242,6 +1242,7 @@ void Controller::cbf_coverage2()
     // slack.row(3) = 100000 * Eigen::VectorXd::Ones(ROBOTS_NUM-1);
 
     // Sort neighbors based on distance and update number of particles
+    /*
     std::vector<std::pair<double, int>> dist_index;
     for (int i = 0; i < distances.size(); i++)
     {
@@ -1280,6 +1281,20 @@ void Controller::cbf_coverage2()
             filters[id]->updateParticlesNumber(p_num);
         }
     }
+    */
+
+    std::vector<Vector2<double>> mean_points_vec2;
+    for (int j = 0; j < ROBOTS_NUM; j++)
+    {
+        if (j != ROBOT_ID)
+        {
+            Vector2<double> mp = {filters[j]->getMean()(0), filters[j]->getMean()(1)};
+            mean_points_vec2.push_back(mp);
+            this->app_gui->drawPoint(mp, sf::Color(0,0,255));
+        }
+    }
+    this->app_gui->display();
+    return;
 
     
     // std::cout << "Slack variables: \n" << slack << "\n";

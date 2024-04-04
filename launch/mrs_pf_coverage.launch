@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <launch>
+    <arg name="ROBOTS_NUM" default="2" />
     <arg name="MODE" default="0" />
-    <arg name="ROBOTS_NUM" default="12" />
-    <arg name="ROBOT_FOV" default="360.0" />
-    <arg name="ROBOT_RANGE" default="100.0" />
+    <arg name="ROBOT_FOV" default="160.0" />
+    <arg name="ROBOT_RANGE" default="10.0" />
     <arg name="AREA_SIZE_x" default="60.0" />
     <arg name="AREA_SIZE_y" default="60.0" />
     <arg name="AREA_LEFT" default="-30.0" />
@@ -11,21 +11,23 @@
     <arg name="GRAPHICS_ON" default="false" />
     <arg name="save_logs" default="false" />
     <arg name="save_cpu" default="false" />
-    <arg name="GAUSS_X" default="-8.0" />
-    <arg name="GAUSS_Y" default="5.0" />
+    <arg name="GAUSS_X" default="8.0" />
+    <arg name="GAUSS_Y" default="4.0" />
+
+    <arg name="USE_UVDAR" default="true" />
 
     <arg name="use_robot_0" default="1" />
     <arg name="use_robot_1" default="1" />
-    <arg name="use_robot_2" default="1" />
-    <arg name="use_robot_3" default="1" />
-    <arg name="use_robot_4" default="1" />
-    <arg name="use_robot_5" default="1" />
-    <arg name="use_robot_6" default="1" />
-    <arg name="use_robot_7" default="1" />
-    <arg name="use_robot_8" default="1" />
-    <arg name="use_robot_9" default="1" />
-    <arg name="use_robot_10" default="1" />
-    <arg name="use_robot_11" default="1" />
+    <arg name="use_robot_2" default="0" />
+    <arg name="use_robot_3" default="0" />
+    <arg name="use_robot_4" default="0" />
+    <arg name="use_robot_5" default="0" />
+    <arg name="use_robot_6" default="0" />
+    <arg name="use_robot_7" default="0" />
+    <arg name="use_robot_8" default="0" />
+    <arg name="use_robot_9" default="0" />
+    <arg name="use_robot_10" default="0" />
+    <arg name="use_robot_11" default="0" />
     <arg name="use_robot_12" default="0" />
     <arg name="use_robot_13" default="0" />
     <arg name="use_robot_14" default="0" />
@@ -36,9 +38,46 @@
     <arg name="use_robot_19" default="0" />
 
 
+    <node name="vision_sim_0"  pkg="pf_coverage" type="vision_sim">
+        <param name="ROBOT_ID" value="0" />
+        <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
+        <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
+        <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+
+        <!-- <remap from="/uav0/uvdar/measuredPoses" to="/uav0/uvdar/filteredPoses"/> -->
+    </node> 
+
+    <node name="vision_sim_1"  pkg="pf_coverage" type="vision_sim">
+        <param name="ROBOT_ID" value="1" />
+        <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
+        <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
+        <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+
+        <!-- <remap from="/uav1/uvdar/measuredPoses" to="/uav1/uvdar/filteredPoses"/> -->
+    </node> 
+
+     <node name="vision_sim_2"  pkg="pf_coverage" type="vision_sim">
+        <param name="ROBOT_ID" value="2" />
+        <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
+        <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
+        <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+
+        <!-- <remap from="/uav0/uvdar/measuredPoses" to="/uav0/uvdar/filteredPoses"/> -->
+    </node> 
+
+    <node name="vision_sim_3"  pkg="pf_coverage" type="vision_sim"  >
+        <param name="ROBOT_ID" value="3" />
+        <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
+        <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
+        <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+
+        <!-- <remap from="/uav1/uvdar/measuredPoses" to="/uav1/uvdar/filteredPoses"/> -->
+    </node> 
+
+    <!-- <include file="$(find pf_coverage)/launch/kalman.launch"/> -->
 
 
-    <node if="$(arg use_robot_0)" name="cbf_coverage_0"  pkg="pf_coverage" type="cbf_coverage" output="screen" ns="hummingbird0">
+    <node if="$(arg use_robot_0)" name="mrs_pf_coverage_0"  pkg="pf_coverage" type="mrs_pf_coverage2">
         <param name="ROBOT_ID" value="0" />
         <param name="MODE"  value="$(arg MODE)" />
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
@@ -48,30 +87,16 @@
         <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
         <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
         <param name="AREA_BOTTOM"  value="$(arg AREA_BOTTOM)" />
-        <param name="GRAPHICS_ON"  value="$(arg GRAPHICS_ON)" />
+        <param name="GRAPHICS_ON"  value="true" />
         <param name="SAVE_LOGS"  value="$(arg save_logs)" />
         <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
         <param name="GAUSS_X" value="$(arg GAUSS_X)" />
         <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
-        <!-- <rosparam>
-            MODE: 0
-            ROBOTS_NUM: 6
-            ROBOT_ID: 0
-            ROBOT_RANGE: 15.0
-            ROBOT_FOV: 150.0
-            AREA_SIZE_x: 40.0
-            AREA_SIZE_y: 40.0
-            AREA_LEFT: -20.0
-            AREA_BOTTOM: -20.0
-            GRAPHICS_ON: true
-            GOAL_X: 8.0
-            GOAL_Y: 8.0
-            GAUSS_X: 12.0
-            GAUSS_Y: -8.0
-        </rosparam> -->
+
+        <remap unless="$(arg USE_UVDAR)" from="/uav0/fake_vision" to="/uav0/ground_truth/fake_vision" />
     </node>
 
-    <node if="$(arg use_robot_1)" name="cbf_coverage_1"  pkg="pf_coverage" type="cbf_coverage" output="screen" ns="hummingbird1">
+    <node if="$(arg use_robot_1)" name="mrs_pf_coverage_1"  pkg="pf_coverage" type="mrs_pf_coverage2">
         <param name="ROBOT_ID" value="1" />
         <param name="MODE"  value="$(arg MODE)" />
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
@@ -86,25 +111,11 @@
         <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
         <param name="GAUSS_X" value="$(arg GAUSS_X)" />
         <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
-        <!-- <rosparam>
-            MODE: 0
-            ROBOTS_NUM: 6
-            ROBOT_ID: 1
-            ROBOT_RANGE: 15.0
-            ROBOT_FOV: 150.0
-            AREA_SIZE_x: 40.0
-            AREA_SIZE_y: 40.0
-            AREA_LEFT: -20.0
-            AREA_BOTTOM: -20.0
-            GRAPHICS_ON: true
-            GOAL_X: 8.0
-            GOAL_Y: 8.0
-            GAUSS_X: 12.0
-            GAUSS_Y: -8.0
-        </rosparam> -->
+
+        <remap unless="$(arg USE_UVDAR)" from="/uav1/fake_vision" to="/uav1/ground_truth/fake_vision" />
     </node>
 
-    <node if="$(arg use_robot_2)" name="cbf_coverage_2"  pkg="pf_coverage" type="cbf_coverage" output="screen" ns="hummingbird2">
+    <node if="$(arg use_robot_2)" name="mrs_pf_coverage_2"  pkg="pf_coverage" type="mrs_pf_coverage2" >
         <param name="ROBOT_ID" value="2" />
         <param name="MODE"  value="$(arg MODE)" />
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
@@ -119,25 +130,11 @@
         <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
         <param name="GAUSS_X" value="$(arg GAUSS_X)" />
         <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
-        <!-- <rosparam>
-            MODE: 0
-            ROBOTS_NUM: 6
-            ROBOT_ID: 2
-            ROBOT_RANGE: 15.0
-            ROBOT_FOV: 150.0
-            AREA_SIZE_x: 40.0
-            AREA_SIZE_y: 40.0
-            AREA_LEFT: -20.0
-            AREA_BOTTOM: -20.0
-            GRAPHICS_ON: true
-            GOAL_X: -8.0
-            GOAL_Y: 8.0
-            GAUSS_X: 12.0
-            GAUSS_Y: -8.0
-        </rosparam> -->
+
+        <remap unless="$(arg USE_UVDAR)" from="/uav2/fake_vision" to="/uav2/ground_truth/fake_vision" />
     </node>
 
-    <node if="$(arg use_robot_3)" name="cbf_coverage_3"  pkg="pf_coverage" type="cbf_coverage" output="screen" ns="hummingbird3">
+    <node if="$(arg use_robot_3)" name="mrs_pf_coverage_3"  pkg="pf_coverage" type="mrs_pf_coverage2" output="screen">
         <param name="ROBOT_ID" value="3" />
         <param name="MODE"  value="$(arg MODE)" />
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
@@ -147,30 +144,16 @@
         <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
         <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
         <param name="AREA_BOTTOM"  value="$(arg AREA_BOTTOM)" />
-        <param name="GRAPHICS_ON"  value="$(arg GRAPHICS_ON)" />
+        <param name="GRAPHICS_ON"  value="true" />
         <param name="SAVE_LOGS"  value="$(arg save_logs)" />
         <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
         <param name="GAUSS_X" value="$(arg GAUSS_X)" />
         <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
-        <!-- <rosparam>
-            MODE: 0
-            ROBOTS_NUM: 6
-            ROBOT_ID: 3
-            ROBOT_RANGE: 15.0
-            ROBOT_FOV: 150.0
-            AREA_SIZE_x: 40.0
-            AREA_SIZE_y: 40.0
-            AREA_LEFT: -20.0
-            AREA_BOTTOM: -20.0
-            GRAPHICS_ON: true
-            GOAL_X: -8.0
-            GOAL_Y: -8.0
-            GAUSS_X: 12.0
-            GAUSS_Y: -8.0
-        </rosparam> -->
+
+        <remap unless="$(arg USE_UVDAR)" from="/uav3/fake_vision" to="/uav3/ground_truth/fake_vision" /> 
     </node>
 
-    <node if="$(arg use_robot_4)" name="cbf_coverage_4"  pkg="pf_coverage" type="cbf_coverage" output="screen" ns="hummingbird4">
+    <node if="$(arg use_robot_4)" name="mrs_pf_coverage_4"  pkg="pf_coverage" type="mrs_pf_coverage" output="screen">
         <param name="ROBOT_ID" value="4" />
         <param name="MODE"  value="$(arg MODE)" />
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
@@ -185,25 +168,9 @@
         <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
         <param name="GAUSS_X" value="$(arg GAUSS_X)" />
         <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
-        <!-- <rosparam>
-            MODE: 0
-            ROBOTS_NUM: 6
-            ROBOT_ID: 4
-            ROBOT_RANGE: 15.0
-            ROBOT_FOV: 150.0
-            AREA_SIZE_x: 40.0
-            AREA_SIZE_y: 40.0
-            AREA_LEFT: -20.0
-            AREA_BOTTOM: -20.0
-            GRAPHICS_ON: true
-            GOAL_X: 0.0
-            GOAL_Y: -10.0
-            GAUSS_X: 12.0
-            GAUSS_Y: -8.0
-        </rosparam> -->
     </node>
 
-    <node if="$(arg use_robot_5)" name="cbf_coverage_5"  pkg="pf_coverage" type="cbf_coverage" output="screen" ns="hummingbird5">
+    <node if="$(arg use_robot_5)" name="mrs_pf_coverage_5"  pkg="pf_coverage" type="mrs_pf_coverage" output="screen">
         <param name="ROBOT_ID" value="5" />
         <param name="MODE"  value="$(arg MODE)" />
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
@@ -218,25 +185,9 @@
         <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
         <param name="GAUSS_X" value="$(arg GAUSS_X)" />
         <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
-        <!-- <rosparam>
-            MODE: 0
-            ROBOTS_NUM: 6
-            ROBOT_ID: 5
-            ROBOT_RANGE: 15.0
-            ROBOT_FOV: 150.0
-            AREA_SIZE_x: 40.0
-            AREA_SIZE_y: 40.0
-            AREA_LEFT: -20.0
-            AREA_BOTTOM: -20.0
-            GRAPHICS_ON: true
-            GOAL_X: 0.0
-            GOAL_Y: 10.0
-            GAUSS_X: 12.0
-            GAUSS_Y: -8.0
-        </rosparam> -->
     </node>
 
-    <node if="$(arg use_robot_6)" name="cbf_coverage_6"  pkg="pf_coverage" type="cbf_coverage" output="screen" ns="hummingbird6">
+    <node if="$(arg use_robot_6)" name="mrs_pf_coverage_6"  pkg="pf_coverage" type="mrs_pf_coverage" output="screen">
         <param name="ROBOT_ID" value="6" />
         <param name="MODE"  value="$(arg MODE)" />
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
@@ -250,26 +201,9 @@
         <param name="SAVE_LOGS"  value="$(arg save_logs)" />
         <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
         <param name="GAUSS_X" value="$(arg GAUSS_X)" />
-        <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
-        <!-- <rosparam>
-            MODE: 0
-            ROBOTS_NUM: 6
-            ROBOT_ID: 5
-            ROBOT_RANGE: 15.0
-            ROBOT_FOV: 150.0
-            AREA_SIZE_x: 40.0
-            AREA_SIZE_y: 40.0
-            AREA_LEFT: -20.0
-            AREA_BOTTOM: -20.0
-            GRAPHICS_ON: true
-            GOAL_X: 0.0
-            GOAL_Y: 10.0
-            GAUSS_X: 12.0
-            GAUSS_Y: -8.0
-        </rosparam> -->
     </node>
 
-    <node if="$(arg use_robot_7)" name="cbf_coverage_7"  pkg="pf_coverage" type="cbf_coverage" output="screen" ns="hummingbird7">
+    <node if="$(arg use_robot_7)" name="mrs_pf_coverage_7"  pkg="pf_coverage" type="mrs_pf_coverage" output="screen">
         <param name="ROBOT_ID" value="7" />
         <param name="MODE"  value="$(arg MODE)" />
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
@@ -284,25 +218,9 @@
         <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
         <param name="GAUSS_X" value="$(arg GAUSS_X)" />
         <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
-        <!-- <rosparam>
-            MODE: 0
-            ROBOTS_NUM: 6
-            ROBOT_ID: 5
-            ROBOT_RANGE: 15.0
-            ROBOT_FOV: 150.0
-            AREA_SIZE_x: 40.0
-            AREA_SIZE_y: 40.0
-            AREA_LEFT: -20.0
-            AREA_BOTTOM: -20.0
-            GRAPHICS_ON: true
-            GOAL_X: 0.0
-            GOAL_Y: 10.0
-            GAUSS_X: 12.0
-            GAUSS_Y: -8.0
-        </rosparam> -->
     </node>
 
-    <node if="$(arg use_robot_8)" name="cbf_coverage_8"  pkg="pf_coverage" type="cbf_coverage" output="screen" ns="hummingbird8">
+    <node if="$(arg use_robot_8)" name="mrs_pf_coverage_8"  pkg="pf_coverage" type="mrs_pf_coverage" output="screen">
         <param name="ROBOT_ID" value="8" />
         <param name="MODE"  value="$(arg MODE)" />
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
@@ -319,7 +237,7 @@
         <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
     </node>
 
-    <node if="$(arg use_robot_9)" name="cbf_coverage_9"  pkg="pf_coverage" type="cbf_coverage" output="screen" ns="hummingbird9">
+    <node if="$(arg use_robot_9)" name="mrs_pf_coverage_9"  pkg="pf_coverage" type="mrs_pf_coverage" output="screen">
         <param name="ROBOT_ID" value="9" />
         <param name="MODE"  value="$(arg MODE)" />
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
@@ -336,7 +254,7 @@
         <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
     </node>
 
-    <node if="$(arg use_robot_10)" name="cbf_coverage_10"  pkg="pf_coverage" type="cbf_coverage" output="screen" ns="hummingbird10">
+    <node if="$(arg use_robot_10)" name="mrs_pf_coverage_10"  pkg="pf_coverage" type="mrs_pf_coverage" output="screen">
         <param name="ROBOT_ID" value="10" />
         <param name="MODE"  value="$(arg MODE)" />
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
@@ -353,7 +271,7 @@
         <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
     </node>
 
-    <node if="$(arg use_robot_11)" name="cbf_coverage_11"  pkg="pf_coverage" type="cbf_coverage" output="screen" ns="hummingbird11">
+    <node if="$(arg use_robot_11)" name="mrs_pf_coverage_11"  pkg="pf_coverage" type="mrs_pf_coverage" output="screen" >
         <param name="ROBOT_ID" value="11" />
         <param name="MODE"  value="$(arg MODE)" />
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
@@ -370,7 +288,7 @@
         <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
     </node>
 
-    <node if="$(arg use_robot_12)" name="cbf_coverage_12"  pkg="pf_coverage" type="cbf_coverage" output="screen" ns="hummingbird12">
+    <node if="$(arg use_robot_12)" name="mrs_pf_coverage_12"  pkg="pf_coverage" type="mrs_pf_coverage" output="screen">
         <param name="ROBOT_ID" value="12" />
         <param name="MODE"  value="$(arg MODE)" />
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
@@ -387,7 +305,7 @@
         <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
     </node>
 
-    <node if="$(arg use_robot_13)" name="cbf_coverage_13"  pkg="pf_coverage" type="cbf_coverage" output="screen" ns="hummingbird13">
+    <node if="$(arg use_robot_13)" name="mrs_pf_coverage_13"  pkg="pf_coverage" type="mrs_pf_coverage" output="screen" >
         <param name="ROBOT_ID" value="13" />
         <param name="MODE"  value="$(arg MODE)" />
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
@@ -404,7 +322,7 @@
         <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
     </node>
 
-    <node if="$(arg use_robot_14)" name="cbf_coverage_14"  pkg="pf_coverage" type="cbf_coverage" output="screen" ns="hummingbird14">
+    <node if="$(arg use_robot_14)" name="mrs_pf_coverage_14"  pkg="pf_coverage" type="mrs_pf_coverage" output="screen">
         <param name="ROBOT_ID" value="14" />
         <param name="MODE"  value="$(arg MODE)" />
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
@@ -421,7 +339,7 @@
         <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
     </node>
 
-    <node if="$(arg use_robot_15)" name="cbf_coverage_15"  pkg="pf_coverage" type="cbf_coverage" output="screen" ns="hummingbird15">
+    <node if="$(arg use_robot_15)" name="mrs_pf_coverage_15"  pkg="pf_coverage" type="mrs_pf_coverage" output="screen">
         <param name="ROBOT_ID" value="15" />
         <param name="MODE"  value="$(arg MODE)" />
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
@@ -438,7 +356,7 @@
         <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
     </node>
 
-    <node if="$(arg use_robot_16)" name="cbf_coverage_16"  pkg="pf_coverage" type="cbf_coverage" output="screen" ns="hummingbird16">
+    <node if="$(arg use_robot_16)" name="mrs_pf_coverage_16"  pkg="pf_coverage" type="mrs_pf_coverage" output="screen">
         <param name="ROBOT_ID" value="16" />
         <param name="MODE"  value="$(arg MODE)" />
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
@@ -455,7 +373,7 @@
         <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
     </node>
 
-    <node if="$(arg use_robot_17)" name="cbf_coverage_17"  pkg="pf_coverage" type="cbf_coverage" output="screen" ns="hummingbird17">
+    <node if="$(arg use_robot_17)" name="mrs_pf_coverage_17"  pkg="pf_coverage" type="mrs_pf_coverage" output="screen">
         <param name="ROBOT_ID" value="17" />
         <param name="MODE"  value="$(arg MODE)" />
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
@@ -472,7 +390,7 @@
         <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
     </node>
 
-    <node if="$(arg use_robot_18)" name="cbf_coverage_18"  pkg="pf_coverage" type="cbf_coverage" output="screen" ns="hummingbird18">
+    <node if="$(arg use_robot_18)" name="mrs_pf_coverage_18"  pkg="pf_coverage" type="mrs_pf_coverage" output="screen">
         <param name="ROBOT_ID" value="18" />
         <param name="MODE"  value="$(arg MODE)" />
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
@@ -489,7 +407,7 @@
         <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
     </node>
 
-    <node if="$(arg use_robot_19)" name="cbf_coverage_19"  pkg="pf_coverage" type="cbf_coverage" output="screen" ns="hummingbird19">
+    <node if="$(arg use_robot_19)" name="mrs_pf_coverage_19"  pkg="pf_coverage" type="mrs_pf_coverage" output="screen">
         <param name="ROBOT_ID" value="19" />
         <param name="MODE"  value="$(arg MODE)" />
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />

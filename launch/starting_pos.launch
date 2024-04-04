@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<launch>
+  <node name="startin_pos_0"  pkg="pf_coverage" type="starting_pos" output="screen">
+        <param name="ROBOT_ID" value="0" />
+        <param name="XGOAL"  value="-3.0" />
+        <param name="YGOAL"  value="3.0" />
+        <param name="THGOAL"  value="-0.785" />
+    </node> 
+
+  <node name="startin_pos_1"  pkg="pf_coverage" type="starting_pos" output="screen">
+        <param name="ROBOT_ID" value="1" />
+        <param name="XGOAL"  value="-3.0" />
+        <param name="YGOAL"  value="-3.0" />
+        <param name="THGOAL"  value="0.785" />
+
+
+    </node> 
+
+
+  <node name="startin_pos_2"  pkg="pf_coverage" type="starting_pos" output="screen">
+        <param name="ROBOT_ID" value="2" />
+        <param name="XGOAL"  value="3.0" />
+        <param name="YGOAL"  value="-3.0" />
+        <param name="THGOAL"  value="2.356" />
+    </node> 
+
+  <node name="startin_pos_3"  pkg="pf_coverage" type="starting_pos" output="screen">
+        <param name="ROBOT_ID" value="3" />
+        <param name="XGOAL"  value="3.0" />
+        <param name="YGOAL"  value="3.0" />
+        <param name="THGOAL"  value="-2.356" />
+
+    </node> 
+
+</launch>
