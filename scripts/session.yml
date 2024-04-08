@@ -92,6 +92,16 @@ windows:
   #     layout: even-vertical
   #     panes:
   #     - waitForGazebo; rviz -d $(rospack find uvdar_core)/rviz/two_drone_visualization.rviz
+  - initial_position:
+      layout: even-vertical
+      panes:
+        - 'export UAV_NAME=uav0; waitForControl; sleep 30; rosservice call /$UAV_NAME/control_manager/goto "goal: [-3.0, 3.0, 3.0, -0.785]"'
+        - 'export UAV_NAME=uav1; waitForControl; sleep 30; rosservice call /$UAV_NAME/control_manager/goto "goal: [-3.0, -3.0, 3.0, 0.785]"'
+  - run_pf_coverage:
+      layout: tiled
+      panes:
+        - history -s roslaunch pf_coverage mrs_pf_coverage.launch
+
   - layout:
       layout: tiled
       panes:
