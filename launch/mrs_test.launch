@@ -1,0 +1,430 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="ROBOTS_NUM" default="2" />
+    <arg name="MODE" default="0" />
+    <arg name="ROBOT_FOV" default="160.0" />
+    <arg name="ROBOT_RANGE" default="10.0" />
+    <arg name="AREA_SIZE_x" default="60.0" />
+    <arg name="AREA_SIZE_y" default="60.0" />
+    <arg name="AREA_LEFT" default="-30.0" />
+    <arg name="AREA_BOTTOM" default="-30.0" />
+    <arg name="GRAPHICS_ON" default="true" />
+    <arg name="save_logs" default="false" />
+    <arg name="save_cpu" default="false" />
+    <arg name="GAUSS_X" default="8.0" />
+    <arg name="GAUSS_Y" default="4.0" />
+
+    <arg name="USE_UVDAR" default="true" />
+
+    <arg name="use_robot_0" default="1" />
+    <arg name="use_robot_1" default="1" />
+    <arg name="use_robot_2" default="0" />
+    <arg name="use_robot_3" default="0" />
+    <arg name="use_robot_4" default="0" />
+    <arg name="use_robot_5" default="0" />
+    <arg name="use_robot_6" default="0" />
+    <arg name="use_robot_7" default="0" />
+    <arg name="use_robot_8" default="0" />
+    <arg name="use_robot_9" default="0" />
+    <arg name="use_robot_10" default="0" />
+    <arg name="use_robot_11" default="0" />
+    <arg name="use_robot_12" default="0" />
+    <arg name="use_robot_13" default="0" />
+    <arg name="use_robot_14" default="0" />
+    <arg name="use_robot_15" default="0" />
+    <arg name="use_robot_16" default="0" />
+    <arg name="use_robot_17" default="0" />
+    <arg name="use_robot_18" default="0" />
+    <arg name="use_robot_19" default="0" />
+
+
+    <node if="$(arg use_robot_0)" name="vision_sim_0"  pkg="pf_coverage" type="vision_sim">
+        <param name="ROBOT_ID" value="0" />
+        <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
+        <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
+        <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+
+        <!-- <remap from="/uav0/uvdar/measuredPoses" to="/uav0/uvdar/filteredPoses"/> -->
+    </node> 
+
+    <node if="$(arg use_robot_1)" name="vision_sim_1"  pkg="pf_coverage" type="vision_sim">
+        <param name="ROBOT_ID" value="1" />
+        <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
+        <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
+        <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+
+        <!-- <remap from="/uav1/uvdar/measuredPoses" to="/uav1/uvdar/filteredPoses"/> -->
+    </node> 
+
+     <node if="$(arg use_robot_2)" name="vision_sim_2"  pkg="pf_coverage" type="vision_sim">
+        <param name="ROBOT_ID" value="2" />
+        <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
+        <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
+        <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+
+        <!-- <remap from="/uav0/uvdar/measuredPoses" to="/uav0/uvdar/filteredPoses"/> -->
+    </node> 
+
+    <node if="$(arg use_robot_3)" name="vision_sim_3"  pkg="pf_coverage" type="vision_sim"  >
+        <param name="ROBOT_ID" value="3" />
+        <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
+        <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
+        <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+
+        <!-- <remap from="/uav1/uvdar/measuredPoses" to="/uav1/uvdar/filteredPoses"/> -->
+    </node> 
+
+    <!-- <include file="$(find pf_coverage)/launch/kalman.launch"/> -->
+
+
+    <node if="$(arg use_robot_0)" name="mrs_test_0"  pkg="pf_coverage" type="mrs_test">
+        <param name="ROBOT_ID" value="0" />
+        <param name="MODE"  value="$(arg MODE)" />
+        <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
+        <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
+        <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
+        <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
+        <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
+        <param name="AREA_BOTTOM"  value="$(arg AREA_BOTTOM)" />
+        <param name="GRAPHICS_ON"  value="true" />
+        <param name="SAVE_LOGS"  value="$(arg save_logs)" />
+        <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
+        <param name="GAUSS_X" value="$(arg GAUSS_X)" />
+        <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
+        <param name="GOAL_X" value="3.0" />
+        <param name="GOAL_Y" value="-3.0" />
+
+        <remap unless="$(arg USE_UVDAR)" from="/uav0/fake_vision" to="/uav0/ground_truth/fake_vision" />
+    </node>
+
+    <node if="$(arg use_robot_1)" name="mrs_test_1"  pkg="pf_coverage" type="mrs_test">
+        <param name="ROBOT_ID" value="1" />
+        <param name="MODE"  value="$(arg MODE)" />
+        <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
+        <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
+        <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
+        <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
+        <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
+        <param name="AREA_BOTTOM"  value="$(arg AREA_BOTTOM)" />
+        <param name="GRAPHICS_ON"  value="$(arg GRAPHICS_ON)" />
+        <param name="SAVE_LOGS"  value="$(arg save_logs)" />
+        <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
+        <param name="GAUSS_X" value="$(arg GAUSS_X)" />
+        <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
+        <param name="GOAL_X" value="3.0" />
+        <param name="GOAL_Y" value="3.0" />
+
+        <remap unless="$(arg USE_UVDAR)" from="/uav1/fake_vision" to="/uav1/ground_truth/fake_vision" />
+    </node>
+
+    <node if="$(arg use_robot_2)" name="mrs_test_2"  pkg="pf_coverage" type="mrs_test" >
+        <param name="ROBOT_ID" value="2" />
+        <param name="MODE"  value="$(arg MODE)" />
+        <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
+        <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
+        <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
+        <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
+        <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
+        <param name="AREA_BOTTOM"  value="$(arg AREA_BOTTOM)" />
+        <param name="GRAPHICS_ON"  value="$(arg GRAPHICS_ON)" />
+        <param name="SAVE_LOGS"  value="$(arg save_logs)" />
+        <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
+        <param name="GAUSS_X" value="$(arg GAUSS_X)" />
+        <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
+
+        <remap unless="$(arg USE_UVDAR)" from="/uav2/fake_vision" to="/uav2/ground_truth/fake_vision" />
+    </node>
+
+    <node if="$(arg use_robot_3)" name="mrs_test_3"  pkg="pf_coverage" type="mrs_test" output="screen">
+        <param name="ROBOT_ID" value="3" />
+        <param name="MODE"  value="$(arg MODE)" />
+        <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
+        <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
+        <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
+        <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
+        <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
+        <param name="AREA_BOTTOM"  value="$(arg AREA_BOTTOM)" />
+        <param name="GRAPHICS_ON"  value="true" />
+        <param name="SAVE_LOGS"  value="$(arg save_logs)" />
+        <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
+        <param name="GAUSS_X" value="$(arg GAUSS_X)" />
+        <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
+
+        <remap unless="$(arg USE_UVDAR)" from="/uav3/fake_vision" to="/uav3/ground_truth/fake_vision" /> 
+    </node>
+
+    <node if="$(arg use_robot_4)" name="mrs_test_4"  pkg="pf_coverage" type="mrs_test" output="screen">
+        <param name="ROBOT_ID" value="4" />
+        <param name="MODE"  value="$(arg MODE)" />
+        <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
+        <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
+        <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
+        <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
+        <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
+        <param name="AREA_BOTTOM"  value="$(arg AREA_BOTTOM)" />
+        <param name="GRAPHICS_ON"  value="$(arg GRAPHICS_ON)" />
+        <param name="SAVE_LOGS"  value="$(arg save_logs)" />
+        <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
+        <param name="GAUSS_X" value="$(arg GAUSS_X)" />
+        <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
+    </node>
+
+    <node if="$(arg use_robot_5)" name="mrs_test_5"  pkg="pf_coverage" type="mrs_test" output="screen">
+        <param name="ROBOT_ID" value="5" />
+        <param name="MODE"  value="$(arg MODE)" />
+        <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
+        <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
+        <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
+        <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
+        <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
+        <param name="AREA_BOTTOM"  value="$(arg AREA_BOTTOM)" />
+        <param name="GRAPHICS_ON"  value="$(arg GRAPHICS_ON)" />
+        <param name="SAVE_LOGS"  value="$(arg save_logs)" />
+        <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
+        <param name="GAUSS_X" value="$(arg GAUSS_X)" />
+        <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
+    </node>
+
+    <node if="$(arg use_robot_6)" name="mrs_test_6"  pkg="pf_coverage" type="mrs_test" output="screen">
+        <param name="ROBOT_ID" value="6" />
+        <param name="MODE"  value="$(arg MODE)" />
+        <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
+        <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
+        <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
+        <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
+        <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
+        <param name="AREA_BOTTOM"  value="$(arg AREA_BOTTOM)" />
+        <param name="GRAPHICS_ON"  value="$(arg GRAPHICS_ON)" />
+        <param name="SAVE_LOGS"  value="$(arg save_logs)" />
+        <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
+        <param name="GAUSS_X" value="$(arg GAUSS_X)" />
+    </node>
+
+    <node if="$(arg use_robot_7)" name="mrs_test_7"  pkg="pf_coverage" type="mrs_test" output="screen">
+        <param name="ROBOT_ID" value="7" />
+        <param name="MODE"  value="$(arg MODE)" />
+        <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
+        <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
+        <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
+        <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
+        <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
+        <param name="AREA_BOTTOM"  value="$(arg AREA_BOTTOM)" />
+        <param name="GRAPHICS_ON"  value="$(arg GRAPHICS_ON)" />
+        <param name="SAVE_LOGS"  value="$(arg save_logs)" />
+        <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
+        <param name="GAUSS_X" value="$(arg GAUSS_X)" />
+        <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
+    </node>
+
+    <node if="$(arg use_robot_8)" name="mrs_test_8"  pkg="pf_coverage" type="mrs_test" output="screen">
+        <param name="ROBOT_ID" value="8" />
+        <param name="MODE"  value="$(arg MODE)" />
+        <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
+        <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
+        <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
+        <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
+        <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
+        <param name="AREA_BOTTOM"  value="$(arg AREA_BOTTOM)" />
+        <param name="GRAPHICS_ON"  value="$(arg GRAPHICS_ON)" />
+        <param name="SAVE_LOGS"  value="$(arg save_logs)" />
+        <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
+        <param name="GAUSS_X" value="$(arg GAUSS_X)" />
+        <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
+    </node>
+
+    <node if="$(arg use_robot_9)" name="mrs_test_9"  pkg="pf_coverage" type="mrs_test" output="screen">
+        <param name="ROBOT_ID" value="9" />
+        <param name="MODE"  value="$(arg MODE)" />
+        <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
+        <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
+        <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
+        <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
+        <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
+        <param name="AREA_BOTTOM"  value="$(arg AREA_BOTTOM)" />
+        <param name="GRAPHICS_ON"  value="$(arg GRAPHICS_ON)" />
+        <param name="SAVE_LOGS"  value="$(arg save_logs)" />
+        <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
+        <param name="GAUSS_X" value="$(arg GAUSS_X)" />
+        <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
+    </node>
+
+    <node if="$(arg use_robot_10)" name="mrs_test_10"  pkg="pf_coverage" type="mrs_test" output="screen">
+        <param name="ROBOT_ID" value="10" />
+        <param name="MODE"  value="$(arg MODE)" />
+        <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
+        <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
+        <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
+        <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
+        <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
+        <param name="AREA_BOTTOM"  value="$(arg AREA_BOTTOM)" />
+        <param name="GRAPHICS_ON"  value="$(arg GRAPHICS_ON)" />
+        <param name="SAVE_LOGS"  value="$(arg save_logs)" />
+        <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
+        <param name="GAUSS_X" value="$(arg GAUSS_X)" />
+        <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
+    </node>
+
+    <node if="$(arg use_robot_11)" name="mrs_test_11"  pkg="pf_coverage" type="mrs_test" output="screen" >
+        <param name="ROBOT_ID" value="11" />
+        <param name="MODE"  value="$(arg MODE)" />
+        <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
+        <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
+        <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
+        <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
+        <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
+        <param name="AREA_BOTTOM"  value="$(arg AREA_BOTTOM)" />
+        <param name="GRAPHICS_ON"  value="$(arg GRAPHICS_ON)" />
+        <param name="SAVE_LOGS"  value="$(arg save_logs)" />
+        <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
+        <param name="GAUSS_X" value="$(arg GAUSS_X)" />
+        <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
+    </node>
+
+    <node if="$(arg use_robot_12)" name="mrs_test_12"  pkg="pf_coverage" type="mrs_test" output="screen">
+        <param name="ROBOT_ID" value="12" />
+        <param name="MODE"  value="$(arg MODE)" />
+        <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
+        <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
+        <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
+        <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
+        <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
+        <param name="AREA_BOTTOM"  value="$(arg AREA_BOTTOM)" />
+        <param name="GRAPHICS_ON"  value="$(arg GRAPHICS_ON)" />
+        <param name="SAVE_LOGS"  value="$(arg save_logs)" />
+        <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
+        <param name="GAUSS_X" value="$(arg GAUSS_X)" />
+        <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
+    </node>
+
+    <node if="$(arg use_robot_13)" name="mrs_test_13"  pkg="pf_coverage" type="mrs_test" output="screen" >
+        <param name="ROBOT_ID" value="13" />
+        <param name="MODE"  value="$(arg MODE)" />
+        <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
+        <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
+        <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
+        <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
+        <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
+        <param name="AREA_BOTTOM"  value="$(arg AREA_BOTTOM)" />
+        <param name="GRAPHICS_ON"  value="$(arg GRAPHICS_ON)" />
+        <param name="SAVE_LOGS"  value="$(arg save_logs)" />
+        <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
+        <param name="GAUSS_X" value="$(arg GAUSS_X)" />
+        <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
+    </node>
+
+    <node if="$(arg use_robot_14)" name="mrs_test_14"  pkg="pf_coverage" type="mrs_test" output="screen">
+        <param name="ROBOT_ID" value="14" />
+        <param name="MODE"  value="$(arg MODE)" />
+        <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
+        <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
+        <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
+        <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
+        <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
+        <param name="AREA_BOTTOM"  value="$(arg AREA_BOTTOM)" />
+        <param name="GRAPHICS_ON"  value="$(arg GRAPHICS_ON)" />
+        <param name="SAVE_LOGS"  value="$(arg save_logs)" />
+        <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
+        <param name="GAUSS_X" value="$(arg GAUSS_X)" />
+        <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
+    </node>
+
+    <node if="$(arg use_robot_15)" name="mrs_test_15"  pkg="pf_coverage" type="mrs_test" output="screen">
+        <param name="ROBOT_ID" value="15" />
+        <param name="MODE"  value="$(arg MODE)" />
+        <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
+        <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
+        <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
+        <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
+        <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
+        <param name="AREA_BOTTOM"  value="$(arg AREA_BOTTOM)" />
+        <param name="GRAPHICS_ON"  value="$(arg GRAPHICS_ON)" />
+        <param name="SAVE_LOGS"  value="$(arg save_logs)" />
+        <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
+        <param name="GAUSS_X" value="$(arg GAUSS_X)" />
+        <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
+    </node>
+
+    <node if="$(arg use_robot_16)" name="mrs_test_16"  pkg="pf_coverage" type="mrs_test" output="screen">
+        <param name="ROBOT_ID" value="16" />
+        <param name="MODE"  value="$(arg MODE)" />
+        <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
+        <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
+        <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
+        <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
+        <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
+        <param name="AREA_BOTTOM"  value="$(arg AREA_BOTTOM)" />
+        <param name="GRAPHICS_ON"  value="$(arg GRAPHICS_ON)" />
+        <param name="SAVE_LOGS"  value="$(arg save_logs)" />
+        <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
+        <param name="GAUSS_X" value="$(arg GAUSS_X)" />
+        <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
+    </node>
+
+    <node if="$(arg use_robot_17)" name="mrs_test_17"  pkg="pf_coverage" type="mrs_test" output="screen">
+        <param name="ROBOT_ID" value="17" />
+        <param name="MODE"  value="$(arg MODE)" />
+        <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
+        <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
+        <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
+        <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
+        <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
+        <param name="AREA_BOTTOM"  value="$(arg AREA_BOTTOM)" />
+        <param name="GRAPHICS_ON"  value="$(arg GRAPHICS_ON)" />
+        <param name="SAVE_LOGS"  value="$(arg save_logs)" />
+        <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
+        <param name="GAUSS_X" value="$(arg GAUSS_X)" />
+        <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
+    </node>
+
+    <node if="$(arg use_robot_18)" name="mrs_test_18"  pkg="pf_coverage" type="mrs_test" output="screen">
+        <param name="ROBOT_ID" value="18" />
+        <param name="MODE"  value="$(arg MODE)" />
+        <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
+        <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
+        <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
+        <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
+        <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
+        <param name="AREA_BOTTOM"  value="$(arg AREA_BOTTOM)" />
+        <param name="GRAPHICS_ON"  value="$(arg GRAPHICS_ON)" />
+        <param name="SAVE_LOGS"  value="$(arg save_logs)" />
+        <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
+        <param name="GAUSS_X" value="$(arg GAUSS_X)" />
+        <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
+    </node>
+
+    <node if="$(arg use_robot_19)" name="mrs_test_19"  pkg="pf_coverage" type="mrs_test" output="screen">
+        <param name="ROBOT_ID" value="19" />
+        <param name="MODE"  value="$(arg MODE)" />
+        <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
+        <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
+        <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
+        <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
+        <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
+        <param name="AREA_BOTTOM"  value="$(arg AREA_BOTTOM)" />
+        <param name="GRAPHICS_ON"  value="$(arg GRAPHICS_ON)" />
+        <param name="SAVE_LOGS"  value="$(arg save_logs)" />
+        <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
+        <param name="GAUSS_X" value="$(arg GAUSS_X)" />
+        <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
+    </node>
+</launch>

@@ -216,6 +216,18 @@ target_link_libraries(starting_pos
   OsqpEigen::OsqpEigen
 )
 
+add_executable(mrs_test src/mrs_test.cpp)
+add_dependencies(mrs_test ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(mrs_test
+  ${catkin_LIBRARIES}
+  ${particle_filter_LIBRARIES}
+  ${SFML_libraries}
+  ${vision_control_LIBRARIES}
+  ${hqp_LIBRARIES}
+  OsqpEigen::OsqpEigen
+)
+
+
 
 #############
 ## Install ##
