@@ -1,0 +1,3 @@
+- High computational overhead on the `starting_pos.launch`
+- Why `gps_baro` - wouldn't garmin be better?
+- mrs_pf_coverage.launch also has extreme computational cost - to the point of freezing my pc
