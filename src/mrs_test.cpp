@@ -597,8 +597,8 @@ void Controller::loop()
                 // std::cout << "Prediction completed" << std::endl;
 
                 // std::cout << "sigma x: " << covariances[j](0,0) << ", sigma y: " << covariances[j](1,1) << std::endl;
-                // filters[c]->updateWeights2d(p_j.col(j), covariances[j](0,0), covariances[j](1,1));
-                filters[c]->updateWeights(p_j.col(j), 0.2);
+                filters[c]->updateWeightsWithCovariance(p_j.col(j), covariances[j]);
+                // filters[c]->updateWeights(p_j.col(j), 0.2);
             }
             else
             {
@@ -1222,7 +1222,7 @@ void Controller::neighCallback(const mrs_msgs::PoseWithCovarianceArrayStamped::C
             covariances[id](1, 0) = sxy;
             covariances[id](0, 1) = sxy;
             covariances[id](1, 1) = sy;
-            // std::cout << "Covariance of robot " << id << ": \n" << covariances[id] << std::endl;
+            std::cout << "Covariance of robot " << id << ": \n" << covariances[id] << std::endl;
 
             // Conversion to global position
             Eigen::MatrixXd R_w_i; // rotation matrix from local to global
