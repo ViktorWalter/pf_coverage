@@ -87,7 +87,7 @@
         <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
         <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
         <param name="AREA_BOTTOM"  value="$(arg AREA_BOTTOM)" />
-        <param name="GRAPHICS_ON"  value="true" />
+        <param name="GRAPHICS_ON"  value="$(arg GRAPHICS_ON)" />
         <param name="SAVE_LOGS"  value="$(arg save_logs)" />
         <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
         <param name="GAUSS_X" value="$(arg GAUSS_X)" />
