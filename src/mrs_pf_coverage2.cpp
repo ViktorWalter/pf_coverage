@@ -139,6 +139,9 @@ public:
         p_j.resize(3, ROBOTS_NUM); // matrix with global position of neighbors on each column
         p_j_i.resize(3, ROBOTS_NUM - 1);
         p_j_est.resize(3, ROBOTS_NUM - 1);
+        p_j.setOnes();
+        p_j_i.setOnes();
+        p_j_est.setOnes();
         slack.resize(4, ROBOTS_NUM - 1);
         slack_neg.resize(4, ROBOTS_NUM - 1);
         realpose_x = Eigen::VectorXd::Zero(ROBOTS_NUM);
@@ -537,12 +540,10 @@ void Controller::cbf_coverage2()
         0, 0, 1;
 
     // std::cout << "p_j: " << p_j << std::endl;
-    /*
     if (!received)
     {
         return;
     }
-    */
 
     if (SAVE_LOGS)
     {
@@ -914,7 +915,7 @@ void Controller::cbf_coverage2()
     // ------------------------------- Voronoi -------------------------------
     // Get detected or estimated position of neighbors in local coordinates
     Box<double> AreaBox{AREA_LEFT, AREA_BOTTOM, AREA_SIZE_x + AREA_LEFT, AREA_SIZE_y + AREA_BOTTOM};
-    Box<double> RangeBox{ROBOT_RANGE, ROBOT_RANGE, ROBOT_RANGE, ROBOT_RANGE};
+    Box<double> RangeBox{-0.5*ROBOT_RANGE, -0.5*ROBOT_RANGE, 0.5*ROBOT_RANGE, 0.5*ROBOT_RANGE};
     std::vector<double> VARs = {2.0};
     std::vector<Vector2<double>> MEANs = {{GAUSSIAN_MEAN_PT(0), GAUSSIAN_MEAN_PT(1)}};
     double vel_x = 0, vel_y = 0;
@@ -925,15 +926,18 @@ void Controller::cbf_coverage2()
     local_points.push_back(p);
     // Vector2<double> p_local = {0.0, 0.0};
     // local_points.push_back(p_local);
+    std::cout << "Local points: \n";
     for (int i = 0; i < ROBOTS_NUM - 1; i++)
     {
         Vector2<double> p_local = {filters[i]->getMean()(0) - p.x, filters[i]->getMean()(1) - p.y};
-        // std::cout << "p_local_" << i << ": " << p_local.x << ", " << p_local.y << std::endl;
+        std::cout << "p_local_" << i << ": " << p_local.x << ", " << p_local.y << std::endl;
         local_points.push_back(p_local);
     }
 
     // std::cout << "Generating decentralized diagram.\n";
-    auto diagram = generateDecentralizedDiagram(local_points, RangeBox, p, ROBOT_RANGE, AreaBox);
+    auto flt_seeds = filterPointsVector(local_points, RangeBox);
+    auto diagram = generateDecentralizedDiagram(flt_seeds, RangeBox, p, ROBOT_RANGE, AreaBox);
+    std::cout << "Number of vertices: " << diagram.getVertices().size() << std::endl;
     // std::cout << "Diagram generated. Calculating centroid.\n";
     Vector2<double> centroid = computePolygonCentroid(diagram, MEANs, VARs);
     // std::cout << "Centroid: " << centroid.x << ", " << centroid.y << "\n";
