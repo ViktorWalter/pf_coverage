@@ -430,9 +430,9 @@ private:
     Vertex* createVertex(Vector2<T> point)  //parametro: point(x,y)
     {
         // Check number of vertices
-        if (mVertices.size() > 100)
+        if (mVertices.size() > 1000)
         {
-            std::cout << "Too many vertices! ( " << mVertices.size() << ")\n";
+            std::cout << "Too many vertices! (" << mVertices.size() << ")\n";
             exit(1);
         }
 
