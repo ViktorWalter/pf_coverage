@@ -537,10 +537,12 @@ void Controller::loop()
         0, 0, 1;
 
     // std::cout << "p_j: " << p_j << std::endl;
+    /* 
     if (!received)
     {
         return;
     }
+    */
 
     if (SAVE_LOGS)
     {
@@ -598,7 +600,8 @@ void Controller::loop()
 
                 // std::cout << "sigma x: " << covariances[j](0,0) << ", sigma y: " << covariances[j](1,1) << std::endl;
                 // filters[c]->updateWeights2d(p_j.col(j), covariances[j](0,0), covariances[j](1,1));
-                filters[c]->updateWeights(p_j.col(j), 0.2);
+                filters[c]->updateWeightsWithCovariance(p_j.col(j), covariances[j]);
+                // filters[c]->updateWeights(p_j.col(j), 0.2);
             }
             else
             {
@@ -619,7 +622,7 @@ void Controller::loop()
                 // Get particles in required format
                 Eigen::MatrixXd particles = filters[c]->getParticles();
                 // std::vector<Eigen::VectorXd> samples;
-                /* ---- PARTICLES DELETION --------- */
+                /* ---- PARTICLES DELETION --------- 
                 Eigen::VectorXd weights = filters[c]->getWeights();
                 double w_min =  weights.maxCoeff();
                 std::cout << "*********\nMinimum weight: " << w_min << "\n************\n";
@@ -634,7 +637,7 @@ void Controller::loop()
                 }
                 // std::cout << "Particles converted to required format" << std::endl;
                 filters[c]->setWeights(weights); // update weights
-                /*--------------------- PARTICLES DELETION ---------------*/
+                --------------------- PARTICLES DELETION ---------------*/
             }
 
             filters[c]->resample();
@@ -723,7 +726,7 @@ void Controller::loop()
                 // s = 4.605 for 90% confidence interval
                 // s = 5.991 for 95% confidence interval
                 // s = 9.210 for 99% confidence interval
-                double s = 4.605;
+                double s = 5.991;
                 double a = sqrt(s * eigenvalues(0)); // major axis
                 double b = sqrt(s * eigenvalues(1)); // minor axis
 
@@ -794,7 +797,7 @@ void Controller::loop()
     for (int i = 0; i < distances.size(); i++)
     {
         // slack.col(i) =  slack_max.cwiseProduct(sigmoid(2*(distances[i] - 2*SAFETY_DIST)) * Eigen::VectorXd::Ones(4)) + slack_neg.col(i);
-        slack.col(i) = slack_max.cwiseProduct(sigmoid(distances[i] - 2*dist_lim) * Eigen::VectorXd::Ones(4)); // + slack_neg.col(i);
+        slack.col(i) = slack_max.cwiseProduct(sigmoid(distances[i] - 3*dist_lim) * Eigen::VectorXd::Ones(4)); // + slack_neg.col(i);
     }
 
     // slack.row(3) = 100000 * Eigen::VectorXd::Ones(ROBOTS_NUM-1);
@@ -1217,12 +1220,12 @@ void Controller::neighCallback(const mrs_msgs::PoseWithCovarianceArrayStamped::C
 
             double sx = msg->poses[j].covariance[0];
             double sxy = msg->poses[j].covariance[1];
-            double sy = msg->poses[j].covariance[4];
+            double sy = msg->poses[j].covariance[7];
             covariances[id](0, 0) = sx;
             covariances[id](1, 0) = sxy;
             covariances[id](0, 1) = sxy;
             covariances[id](1, 1) = sy;
-            // std::cout << "Covariance of robot " << id << ": \n" << covariances[id] << std::endl;
+            std::cout << "Covariance of robot " << id << ": \n" << covariances[id] << std::endl;
 
             // Conversion to global position
             Eigen::MatrixXd R_w_i; // rotation matrix from local to global

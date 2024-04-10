@@ -537,10 +537,12 @@ void Controller::cbf_coverage2()
         0, 0, 1;
 
     // std::cout << "p_j: " << p_j << std::endl;
+    /*
     if (!received)
     {
         return;
     }
+    */
 
     if (SAVE_LOGS)
     {

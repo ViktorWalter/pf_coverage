@@ -38,7 +38,7 @@
     <arg name="use_robot_19" default="0" />
 
 
-    <node name="vision_sim_0"  pkg="pf_coverage" type="vision_sim">
+    <node if="$(arg use_robot_0)" name="vision_sim_0"  pkg="pf_coverage" type="vision_sim">
         <param name="ROBOT_ID" value="0" />
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
         <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
@@ -47,7 +47,7 @@
         <!-- <remap from="/uav0/uvdar/measuredPoses" to="/uav0/uvdar/filteredPoses"/> -->
     </node> 
 
-    <node name="vision_sim_1"  pkg="pf_coverage" type="vision_sim">
+    <node if="$(arg use_robot_1)" name="vision_sim_1"  pkg="pf_coverage" type="vision_sim">
         <param name="ROBOT_ID" value="1" />
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
         <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
@@ -56,7 +56,7 @@
         <!-- <remap from="/uav1/uvdar/measuredPoses" to="/uav1/uvdar/filteredPoses"/> -->
     </node> 
 
-     <node name="vision_sim_2"  pkg="pf_coverage" type="vision_sim">
+     <node if="$(arg use_robot_2)" name="vision_sim_2"  pkg="pf_coverage" type="vision_sim">
         <param name="ROBOT_ID" value="2" />
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
         <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
@@ -65,7 +65,7 @@
         <!-- <remap from="/uav0/uvdar/measuredPoses" to="/uav0/uvdar/filteredPoses"/> -->
     </node> 
 
-    <node name="vision_sim_3"  pkg="pf_coverage" type="vision_sim"  >
+    <node if="$(arg use_robot_3)" name="vision_sim_3"  pkg="pf_coverage" type="vision_sim"  >
         <param name="ROBOT_ID" value="3" />
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
         <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
@@ -77,7 +77,7 @@
     <!-- <include file="$(find pf_coverage)/launch/kalman.launch"/> -->
 
 
-    <node if="$(arg use_robot_0)" name="mrs_pf_coverage_0"  pkg="pf_coverage" type="mrs_pf_coverage2">
+    <node if="$(arg use_robot_0)" name="mrs_pf_coverage_0"  pkg="pf_coverage" type="mrs_pf_coverage2" output="screen">
         <param name="ROBOT_ID" value="0" />
         <param name="MODE"  value="$(arg MODE)" />
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
@@ -87,7 +87,7 @@
         <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
         <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
         <param name="AREA_BOTTOM"  value="$(arg AREA_BOTTOM)" />
-        <param name="GRAPHICS_ON"  value="true" />
+        <param name="GRAPHICS_ON"  value="$(arg GRAPHICS_ON)" />
         <param name="SAVE_LOGS"  value="$(arg save_logs)" />
         <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
         <param name="GAUSS_X" value="$(arg GAUSS_X)" />

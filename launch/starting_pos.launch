@@ -4,14 +4,14 @@
         <param name="ROBOT_ID" value="0" />
         <param name="XGOAL"  value="-3.0" />
         <param name="YGOAL"  value="3.0" />
-        <param name="THGOAL"  value="-0.785" />
+        <param name="THGOAL"  value="-1.0" />
     </node> 
 
   <node name="startin_pos_1"  pkg="pf_coverage" type="starting_pos" output="screen">
         <param name="ROBOT_ID" value="1" />
         <param name="XGOAL"  value="-3.0" />
         <param name="YGOAL"  value="-3.0" />
-        <param name="THGOAL"  value="0.785" />
+        <param name="THGOAL"  value="1.0" />
 
 
     </node> 
