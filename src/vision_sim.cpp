@@ -28,6 +28,10 @@
 #include <nav_msgs/Odometry.h>
 #include <mrs_msgs/PoseWithCovarianceArrayStamped.h>
 #include <mrs_msgs/PoseWithCovarianceIdentified.h>
+#include <tf2_ros/transform_broadcaster.h>
+#include <geometry_msgs/TransformStamped.h>
+#include <tf2_ros/transform_listener.h>
+
 
 #define M_PI   3.14159265358979323846  /*pi*/
 
@@ -63,7 +67,7 @@ public:
 
         for (int i = 0; i < ROBOTS_NUM; i++)
         {
-            odomSubs_.push_back(nh_.subscribe<nav_msgs::Odometry>("/uav" + std::to_string(i) + "/estimation_manager/odom_main", 1, std::bind(&Controller::odomCallback, this, std::placeholders::_1, i)));
+            odomSubs_.push_back(nh_.subscribe<nav_msgs::Odometry>("/uav" + std::to_string(i) + "/estimation_manager/gps_garmin/odom/local", 1, std::bind(&Controller::odomCallback, this, std::placeholders::_1, i)));
         }
 
         // odomSub_ = nh_.subscribe<nav_msgs::Odometry>("/uav" + std::to_string(ROBOT_ID) + "/estimation_manager/odom_main", 1, std::bind(&Controller::odomCallback, this, std::placeholders::_1));
@@ -71,6 +75,7 @@ public:
         pub_ = nh_.advertise<mrs_msgs::PoseWithCovarianceArrayStamped>("uav" + std::to_string(ROBOT_ID) + "/fake_vision", 1);
         fakepub_ = nh_.advertise<mrs_msgs::PoseWithCovarianceArrayStamped>("uav" + std::to_string(ROBOT_ID) + "/ground_truth/fake_vision", 1);
         timer_ = nh_.createTimer(ros::Duration(0.1), std::bind(&Controller::timer_callback, this));
+
     }
     
     ~Controller()
@@ -80,6 +85,7 @@ public:
 
     void stop();
     void neighCallback(const mrs_msgs::PoseWithCovarianceArrayStamped::ConstPtr msg);
+    void neighbors_tf(const mrs_msgs::PoseWithCovarianceArrayStamped::ConstPtr msg);
     void odomCallback(const nav_msgs::Odometry::ConstPtr msg, int i);
     bool insideFOV(Eigen::VectorXd q, Eigen::VectorXd q_obs, double fov, double r_sens);
     void timer_callback();
@@ -139,16 +145,25 @@ void Controller::neighCallback(const mrs_msgs::PoseWithCovarianceArrayStamped::C
         cov << msg->poses[j].covariance[0], msg->poses[j].covariance[1], //msg->poses[j].covariance[2],
                 msg->poses[j].covariance[6], msg->poses[j].covariance[7]; //msg->poses[j].covariance[8];
                 // msg->poses[j].covariance[12], msg->poses[j].covariance[13], msg->poses[j].covariance[14];
-        std::cout << "Cov matrix: \n" << cov << std::endl;
+        /*std::cout << "Cov matrix: \n" << cov << std::endl;
         Eigen::EigenSolver<Eigen::MatrixXd> es(cov);
         Eigen::VectorXd eigenvalues  = es.eigenvalues().real();
         std::cout << "EigenValues of the cov matrix : " << eigenvalues.transpose() << std::endl; 
-        bool discard = (eigenvalues.array() > 50.0).any();
+        bool discard = (eigenvalues.array() > 50.0).any();*/
+        std::cout << "Received robot " << id << " in position: " << p_j.col(j).transpose() << std::endl;
         if (insideFOV(p_i, p_j.col(j).head(2), ROBOT_FOV, ROBOT_RANGE))
         // if (true)
         {
             std::cout << "Robot " << id << " detected in " << p_j.col(j).transpose() << std::endl;
-            msg_filtered.poses.push_back(msg->poses[j]);
+            mrs_msgs::PoseWithCovarianceIdentified new_msg;
+            double dx = p_j(0, j) - p_i(0);
+            double dy = p_j(1, j) - p_i(1);
+            new_msg.id = id;
+            new_msg.pose.position.x = dx * cos(p_i(2)) + dy * sin(p_i(2));
+            new_msg.pose.position.y = -dx * sin(p_i(2)) + dy * cos(p_i(2));
+            std::cout << "Local position of Robot " << id << " : " << new_msg.pose.position.x << ", " << new_msg.pose.position.y << std::endl;
+            new_msg.covariance = msg->poses[j].covariance;
+            msg_filtered.poses.push_back(new_msg);
         } else
         {
             mrs_msgs::PoseWithCovarianceIdentified fake_msg;
@@ -193,6 +208,11 @@ void Controller::odomCallback(const nav_msgs::Odometry::ConstPtr msg, int i)
     m.getRPY(roll, pitch, yaw);
 
     p_j_real(2, i) = yaw;
+
+    if (i == ROBOT_ID)
+    {
+        p_i = p_j_real.col(i);
+    }
 
     /*for (int j = 0; j < msg->poses.size(); j++)
     {

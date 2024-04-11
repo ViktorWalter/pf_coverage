@@ -128,7 +128,7 @@ public:
             realposeSub_.push_back(nh_.subscribe<nav_msgs::Odometry>("/uav" + std::to_string(i) + "/estimation_manager/odom_main", 1, std::bind(&Controller::realposeCallback, this, std::placeholders::_1, i)));
         }
 
-        odomSub_ = nh_.subscribe<nav_msgs::Odometry>("/uav" + std::to_string(ROBOT_ID) + "/estimation_manager/odom_main", 1, std::bind(&Controller::odomCallback, this, std::placeholders::_1));
+        odomSub_ = nh_.subscribe<nav_msgs::Odometry>("/uav" + std::to_string(ROBOT_ID) + "/estimation_manager/gps_garmin/odom/local", 1, std::bind(&Controller::odomCallback, this, std::placeholders::_1));
         neighSub_ = nh_.subscribe<mrs_msgs::PoseWithCovarianceArrayStamped>("/uav" + std::to_string(ROBOT_ID) + "/fake_vision", 1, std::bind(&Controller::neighCallback, this, std::placeholders::_1));
         joySub_ = nh_.subscribe<geometry_msgs::Twist>("/cmd_vel", 1, std::bind(&Controller::vel_callback, this, std::placeholders::_1));
         velPub_.push_back(nh_.advertise<mrs_msgs::VelocityReferenceStamped>("/uav" + std::to_string(ROBOT_ID) + "/control_manager/velocity_reference", 1));
