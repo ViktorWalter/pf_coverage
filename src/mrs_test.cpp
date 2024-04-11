@@ -45,6 +45,9 @@
 #include <geometry_msgs/PoseArray.h>
 #include <nav_msgs/Odometry.h>
 #include <std_srvs/Empty.h>
+#include <sensor_msgs/Range.h>
+#include <visualization_msgs/MarkerArray.h>
+#include <visualization_msgs/Marker.h>
 
 // MRS imports
 #include <mrs_msgs/VelocityReferenceStamped.h>
@@ -130,6 +133,10 @@ public:
         velPub_.push_back(nh_.advertise<mrs_msgs::VelocityReferenceStamped>("/uav" + std::to_string(ROBOT_ID) + "/control_manager/velocity_reference", 1));
         timer_ = nh_.createTimer(ros::Duration(0.1), std::bind(&Controller::loop, this));
 
+        // RViz visualization
+        rangePub_ = nh_.advertise<sensor_msgs::Range>("/uav" + std::to_string(ROBOT_ID) + "/fov", 1);
+        covPub_ = nh_.advertise<visualization_msgs::MarkerArray>("/uav" + std::to_string(ROBOT_ID) + "/covariances", 1);
+
         // rclcpp::on_shutdown(std::bind(&Controller::stop,this));
 
         //----------------------------------------------------------- init Variables ---------------------------------------------------------
@@ -150,9 +157,6 @@ public:
         time(&this->timer_final_count);
 
         this->got_gmm = false;
-
-        // Optimal value of K(x) calculated with LQR
-        Kopt = Eigen::DiagonalMatrix<double, 3, 3>(0.618, 0.618, 0.618);
 
         slack_max.resize(4);
         double x1m, x2m, y1m, y2m;
@@ -205,6 +209,13 @@ public:
         {
             covariances.push_back(Eigen::Matrix2d::Zero());
         }
+
+        // Initialize visualization msgs
+        fov_msg.header.frame_id = "uav" + std::to_string(ROBOT_ID) + "/fcu";
+        fov_msg.field_of_view = ROBOT_FOV * M_PI / 180.0;
+        fov_msg.min_range = 0.0;
+        fov_msg.max_range = 2*ROBOT_RANGE;
+        fov_msg.range = ROBOT_RANGE;
 
         // this->got_gmm = false;
         std::cout << "Hi! I'm robot number " << ROBOT_ID << std::endl;
@@ -335,7 +346,6 @@ private:
     // Eigen::VectorXd initCovariance;
     double dt = 0.2;
     std::vector<bool> justLost;
-    Eigen::Matrix3d Kopt;
     int parts;
     std::vector<bool> justStarted;
 
@@ -348,8 +358,11 @@ private:
     ros::Subscriber neighSub_;
     ros::Subscriber joySub_;
     std::vector<ros::Subscriber> realposeSub_;
-    // rclcpp::Publisher<geometry_msgs::PolygonStamped>::ConstPtr voronoiPub;
+    ros::Publisher rangePub_;
+    ros::Publisher covPub_; 
     ros::Timer timer_;
+
+    sensor_msgs::Range fov_msg;
 
     // ------------------------------- Particle Filter ----------------------------------
     std::vector<ParticleFilter *> filters;
@@ -600,8 +613,8 @@ void Controller::loop()
 
                 // std::cout << "sigma x: " << covariances[j](0,0) << ", sigma y: " << covariances[j](1,1) << std::endl;
                 // filters[c]->updateWeights2d(p_j.col(j), covariances[j](0,0), covariances[j](1,1));
-                filters[c]->updateWeightsWithCovariance(p_j.col(j), covariances[j]);
-                // filters[c]->updateWeights(p_j.col(j), 0.2);
+                // filters[c]->updateWeightsWithCovariance(p_j.col(j), covariances[j]);
+                filters[c]->updateWeights(p_j.col(j), 0.5);
             }
             else
             {
@@ -622,9 +635,9 @@ void Controller::loop()
                 // Get particles in required format
                 Eigen::MatrixXd particles = filters[c]->getParticles();
                 // std::vector<Eigen::VectorXd> samples;
-                /* ---- PARTICLES DELETION --------- 
+                //---- PARTICLES DELETION --------- 
                 Eigen::VectorXd weights = filters[c]->getWeights();
-                double w_min =  weights.maxCoeff();
+                double w_min =  weights.minCoeff();
                 std::cout << "*********\nMinimum weight: " << w_min << "\n************\n";
                 for (int i = 0; i < particles.cols(); i++)
                 {
@@ -637,7 +650,7 @@ void Controller::loop()
                 }
                 // std::cout << "Particles converted to required format" << std::endl;
                 filters[c]->setWeights(weights); // update weights
-                --------------------- PARTICLES DELETION ---------------*/
+                /*--------------------- PARTICLES DELETION ---------------*/
             }
 
             filters[c]->resample();
@@ -691,6 +704,7 @@ void Controller::loop()
     }
 
     std::vector<double> distances(ROBOTS_NUM - 1);
+    visualization_msgs::MarkerArray markers_msg;
     for (int i = 0; i < ROBOTS_NUM - 1; i++)
     {
         Eigen::VectorXd mean = filters[i]->getMean();
@@ -756,6 +770,33 @@ void Controller::loop()
                     this->app_gui->drawEllipse(mean, a, b, theta);
                 }
 
+                // -------- RViz visaulization
+                visualization_msgs::Marker mrk;
+                mrk.id = i;
+                // mrk.header.frame_id = "map";
+                mrk.header.frame_id = "uav" + std::to_string(ROBOT_ID) + "/local_origin";
+                mrk.type = visualization_msgs::Marker::SPHERE;
+                mrk.action = visualization_msgs::Marker::ADD;
+                mrk.pose.position.x = mean(0);
+                mrk.pose.position.y = mean(1);
+                mrk.pose.position.z = 3.0;
+                mrk.scale.x = a;
+                mrk.scale.y = b;
+                mrk.scale.z = 0.01;
+                tf2::Quaternion q;
+                q.setRPY(0, 0, theta);
+                mrk.pose.orientation.x = q.x();
+                mrk.pose.orientation.y = q.y();
+                mrk.pose.orientation.z = q.z();
+                mrk.pose.orientation.w = q.w();
+                mrk.color.r = 255;
+                mrk.color.g = 178;
+                mrk.color.b = 102;
+                mrk.color.a = 1.0;
+                markers_msg.markers.push_back(mrk);
+                // ---------------------
+
+
                 double slope = atan2(-mean(1) + this->pose_y(ROBOT_ID), -mean(0) + this->pose_x(ROBOT_ID));
                 double x_n = mean(0) + a * cos(slope - theta) * cos(theta) - b * sin(slope - theta) * sin(theta);
                 double y_n = mean(1) + a * cos(slope - theta) * sin(theta) + b * sin(slope - theta) * cos(theta);
@@ -794,10 +835,12 @@ void Controller::loop()
         }
     }
 
+    covPub_.publish(markers_msg);
+
     for (int i = 0; i < distances.size(); i++)
     {
         // slack.col(i) =  slack_max.cwiseProduct(sigmoid(2*(distances[i] - 2*SAFETY_DIST)) * Eigen::VectorXd::Ones(4)) + slack_neg.col(i);
-        slack.col(i) = slack_max.cwiseProduct(sigmoid(distances[i] - 3*dist_lim) * Eigen::VectorXd::Ones(4)); // + slack_neg.col(i);
+        slack.col(i) = slack_max.cwiseProduct(sigmoid(2*(distances[i] - 3*dist_lim)) * Eigen::VectorXd::Ones(4)); // + slack_neg.col(i);
     }
 
     // slack.row(3) = 100000 * Eigen::VectorXd::Ones(ROBOTS_NUM-1);
@@ -971,11 +1014,14 @@ void Controller::loop()
     // vel_msg.header.frame_id = "/hummingbird" + std::to_string(ROBOT_ID) + "/base_link";
     vel_msg.reference.velocity.x = uopt(0);
     vel_msg.reference.velocity.y = uopt(1);
-    vel_msg.reference.altitude = 2.0;
-    vel_msg.reference.use_altitude = false;
+    vel_msg.reference.altitude = 3.0;
+    vel_msg.reference.use_altitude = true;
     vel_msg.reference.heading_rate = uopt(2);
     vel_msg.reference.use_heading_rate = true;
     this->velPub_[0].publish(vel_msg);
+
+    // fov_msg.header.stamp = ros::Time::now();
+    rangePub_.publish(fov_msg);
 
     // if (SAVE_LOGS)
     // {
@@ -1114,6 +1160,7 @@ double Controller::sigmoid(double x)
     double v = 1 / (1 + exp(-x));
     return v;
 }
+
 
 void Controller::test_print()
 {

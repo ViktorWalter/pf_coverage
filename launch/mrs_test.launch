@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <launch>
-    <arg name="ROBOTS_NUM" default="2" />
+    <arg name="ROBOTS_NUM" default="3" />
     <arg name="MODE" default="0" />
     <arg name="ROBOT_FOV" default="160.0" />
     <arg name="ROBOT_RANGE" default="10.0" />
@@ -18,7 +18,7 @@
 
     <arg name="use_robot_0" default="1" />
     <arg name="use_robot_1" default="1" />
-    <arg name="use_robot_2" default="0" />
+    <arg name="use_robot_2" default="1" />
     <arg name="use_robot_3" default="0" />
     <arg name="use_robot_4" default="0" />
     <arg name="use_robot_5" default="0" />
@@ -134,7 +134,7 @@
         <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
         <param name="GAUSS_X" value="$(arg GAUSS_X)" />
         <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
-        <param name="GOAL_X" value="-3.0" />
+        <param name="GOAL_X" value="0.0" />
         <param name="GOAL_Y" value="3.0" />
 
         <remap unless="$(arg USE_UVDAR)" from="/uav2/fake_vision" to="/uav2/ground_truth/fake_vision" />
