@@ -139,6 +139,9 @@ public:
         p_j.resize(3, ROBOTS_NUM); // matrix with global position of neighbors on each column
         p_j_i.resize(3, ROBOTS_NUM - 1);
         p_j_est.resize(3, ROBOTS_NUM - 1);
+        p_j.setOnes();
+        p_j_i.setOnes();
+        p_j_est.setOnes();
         slack.resize(4, ROBOTS_NUM - 1);
         slack_neg.resize(4, ROBOTS_NUM - 1);
         realpose_x = Eigen::VectorXd::Zero(ROBOTS_NUM);
@@ -511,7 +514,7 @@ Eigen::VectorXd Controller::getWheelVelocity(Eigen::VectorXd u, double alpha)
 void Controller::cbf_coverage2()
 {
     auto timerstart = std::chrono::high_resolution_clock::now();
-    Eigen::Vector3d processCovariance = 0.25 * Eigen::Vector3d::Ones();
+    Eigen::Vector3d processCovariance = 0.5 * Eigen::Vector3d::Ones();
     Eigen::Vector3d robot; // controlled robot's global position
     robot << this->pose_x(ROBOT_ID), this->pose_y(ROBOT_ID), this->pose_theta(ROBOT_ID);
     Eigen::MatrixXd samples(3, parts); // particles' global position
@@ -537,12 +540,10 @@ void Controller::cbf_coverage2()
         0, 0, 1;
 
     // std::cout << "p_j: " << p_j << std::endl;
-    /*
     if (!received)
     {
         return;
     }
-    */
 
     if (SAVE_LOGS)
     {
@@ -600,7 +601,7 @@ void Controller::cbf_coverage2()
 
                 // std::cout << "sigma x: " << covariances[j](0,0) << ", sigma y: " << covariances[j](1,1) << std::endl;
                 // filters[c]->updateWeights2d(p_j.col(j), covariances[j](0,0), covariances[j](1,1));
-                filters[c]->updateWeights(p_j.col(j), 0.2);
+                filters[c]->updateWeights(p_j.col(j), 0.25);
             }
             else
             {
@@ -797,7 +798,7 @@ void Controller::cbf_coverage2()
     for (int i = 0; i < distances.size(); i++)
     {
         // slack.col(i) =  slack_max.cwiseProduct(sigmoid(2*(distances[i] - 2*SAFETY_DIST)) * Eigen::VectorXd::Ones(4)) + slack_neg.col(i);
-        slack.col(i) = slack_max.cwiseProduct(sigmoid(distances[i] - 2*dist_lim) * Eigen::VectorXd::Ones(4)); // + slack_neg.col(i);
+        slack.col(i) = slack_max.cwiseProduct(sigmoid(2*(distances[i] - 3*dist_lim)) * Eigen::VectorXd::Ones(4)); // + slack_neg.col(i);
     }
 
     // slack.row(3) = 100000 * Eigen::VectorXd::Ones(ROBOTS_NUM-1);
@@ -915,25 +916,43 @@ void Controller::cbf_coverage2()
     // Get detected or estimated position of neighbors in local coordinates
     Box<double> AreaBox{AREA_LEFT, AREA_BOTTOM, AREA_SIZE_x + AREA_LEFT, AREA_SIZE_y + AREA_BOTTOM};
     Box<double> RangeBox{ROBOT_RANGE, ROBOT_RANGE, ROBOT_RANGE, ROBOT_RANGE};
+    // Box<double> RangeBox{ROBOT_RANGE, ROBOT_RANGE, ROBOT_RANGE, ROBOT_RANGE};
     std::vector<double> VARs = {2.0};
     std::vector<Vector2<double>> MEANs = {{GAUSSIAN_MEAN_PT(0), GAUSSIAN_MEAN_PT(1)}};
     double vel_x = 0, vel_y = 0;
+    std::vector<Vector2<double>> seeds;
 
     // std::cout << "I'm robot " << ROBOT_ID << " in position " << this->pose_x(ROBOT_ID) << ", " << this->pose_y(ROBOT_ID) << std::endl;
     Vector2<double> p = {this->pose_x(ROBOT_ID), this->pose_y(ROBOT_ID)};
     std::vector<Vector2<double>> local_points;
     local_points.push_back(p);
+    seeds.push_back(p);
     // Vector2<double> p_local = {0.0, 0.0};
     // local_points.push_back(p_local);
+    std::cout << "Local points: \n";
     for (int i = 0; i < ROBOTS_NUM - 1; i++)
     {
-        Vector2<double> p_local = {filters[i]->getMean()(0) - p.x, filters[i]->getMean()(1) - p.y};
-        // std::cout << "p_local_" << i << ": " << p_local.x << ", " << p_local.y << std::endl;
+        /*
+        Vector2<double> p_local;
+        if (filters[i]->getMean()(0) >= AREA_LEFT && filters[i]->getMean()(0) <= AREA_SIZE_x+AREA_LEFT && filters[i]->getMean()(1) >= AREA_BOTTOM && filters[i]->getMean()(1) <= AREA_SIZE_y+AREA_BOTTOM)
+        {
+            p_local = {filters[i]->getMean()(0) - p.x, filters[i]->getMean()(1) - p.y};
+        } else
+        {
+            p_local = {10.0, 10.0};
+            std::cout << "DETECTED ROBOT OUSIDE ENVIRONMENT!\n";
+        }
+        std::cout << "p_local_" << i << ": " << p_local.x << ", " << p_local.y << std::endl;
         local_points.push_back(p_local);
+        */
+        seeds.push_back({filters[i]->getMean()(0), filters[i]->getMean()(1)});
     }
 
     // std::cout << "Generating decentralized diagram.\n";
-    auto diagram = generateDecentralizedDiagram(local_points, RangeBox, p, ROBOT_RANGE, AreaBox);
+    auto local_seeds = reworkPointsVector(seeds, seeds[0]);
+    auto flt_seeds = filterPointsVector(local_seeds, RangeBox);
+    auto diagram = generateDecentralizedDiagram(flt_seeds, RangeBox, p, ROBOT_RANGE, AreaBox);
+    std::cout << "Number of vertices: " << diagram.getVertices().size() << std::endl;
     // std::cout << "Diagram generated. Calculating centroid.\n";
     Vector2<double> centroid = computePolygonCentroid(diagram, MEANs, VARs);
     // std::cout << "Centroid: " << centroid.x << ", " << centroid.y << "\n";
@@ -1004,8 +1023,8 @@ void Controller::cbf_coverage2()
     // vel_msg.header.frame_id = "/hummingbird" + std::to_string(ROBOT_ID) + "/base_link";
     vel_msg.reference.velocity.x = uopt(0);
     vel_msg.reference.velocity.y = uopt(1);
-    vel_msg.reference.altitude = 2.0;
-    vel_msg.reference.use_altitude = false;
+    vel_msg.reference.altitude = 3.0;
+    vel_msg.reference.use_altitude = true;
     vel_msg.reference.heading_rate = uopt(2);
     vel_msg.reference.use_heading_rate = true;
     this->velPub_[0].publish(vel_msg);

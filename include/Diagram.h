@@ -10,8 +10,8 @@
 /*  Data structure diagramma di Voronoi --> DCEL: Doubly Connected Edge List
     La DCEL prevede 4 struct interne (Site struct, Vertex struct, HalfEdge struct, Face struct)
     associate ai relativi containers (variabili interne del diagramma).
-    Concettualmente ogni edge comune a due celle adiacenti è splittato in 2 half-edge, uno di
-    proprietà di una cella , l'altro di proprietà della cella adiacente che condivide
+    Concettualmente ogni edge comune a due celle adiacenti ï¿½ splittato in 2 half-edge, uno di
+    proprietï¿½ di una cella , l'altro di proprietï¿½ della cella adiacente che condivide
     con la prima quell'edge.
     Ogni half-edge ha un vertice di origine e un vertice di destinazione e quindi una
     direzione (convenzionalmente antioraria). Complessivamente, battezzato un primo half-edge
@@ -21,7 +21,7 @@
 */
 const int DEBUG = 0;
 
-//Prototipo classe (necessario perché richiamata nella classe Diagram)
+//Prototipo classe (necessario perchï¿½ richiamata nella classe Diagram)
 template<typename T>
 class FortuneAlgorithm;
 
@@ -140,7 +140,7 @@ public:
     }
 //    //////////////////////////////////////////////////////
 
-//added    //Algoritmo di intersezione nel caso di Diagramma con solo sito/faccia centrale --> diagramma deve conicidere con box in modo che il sito stia fermo(densità uniforme) o si muova verso p_t (densità gaussiana)
+//added    //Algoritmo di intersezione nel caso di Diagramma con solo sito/faccia centrale --> diagramma deve conicidere con box in modo che il sito stia fermo(densitï¿½ uniforme) o si muova verso p_t (densitï¿½ gaussiana)
     void intersect_null(Box<T> box)     //creo come halfedge del diagramma i lati della box e come vertici del diagramma i corner della box
     {
         //Creazione del primo halfedge e salvataggio nella variabile startedge
@@ -172,14 +172,14 @@ public:
     bool intersect(Box<T> box)
     {
         auto success = true;
-        auto processedHalfEdges = std::unordered_set<HalfEdge*>();  //set che conterrà gli half-edge già processati (unordered_set solo per prestazioni)
-        auto verticesToRemove = std::unordered_set<Vertex*>();  //set che conterrà i vertici da rimuovere (unordered_set solo per prestazioni)
+        auto processedHalfEdges = std::unordered_set<HalfEdge*>();  //set che conterrï¿½ gli half-edge giï¿½ processati (unordered_set solo per prestazioni)
+        auto verticesToRemove = std::unordered_set<Vertex*>();  //set che conterrï¿½ i vertici da rimuovere (unordered_set solo per prestazioni)
         //Risaliamo innanzitutto agli half-edge tramite il puntatore outerComponent di ogni faccia
         //Ciclo for ripetuto per ogni sito o equivalentemente per ogni faccia
         for (const auto& site : mSites)
         {
             auto halfEdge = site.face->outerComponent;  //salviamo l'half-edge puntato dalla faccia
-            auto inside = box.contains(halfEdge->origin->point); //variabile bool: true se il vertice di origine dell'half-edge è interno alla box, false se è esterno
+            auto inside = box.contains(halfEdge->origin->point); //variabile bool: true se il vertice di origine dell'half-edge ï¿½ interno alla box, false se ï¿½ esterno
             auto outerComponentDirty = !inside; //variabile bool opposta alla precedente
             auto incomingHalfEdge = static_cast<HalfEdge*>(nullptr); //primo half-edge entrante (resettato ad ogni scansione di una nuova faccia)
             auto outgoingHalfEdge = static_cast<HalfEdge*>(nullptr); //ultimo half-edge uscente (resettato ad ogni scansione di una nuova faccia)
@@ -190,7 +190,7 @@ public:
             {   //Ciclo ripetuto fino all'esaurimento degli half-edge della faccia
                 auto intersections = std::array<typename Box<T>::Intersection, 2>{}; //array intersezioni dell'half-edge con la box (massimo 2 vedi immagine colorata quaderno)
                 auto nbIntersections = box.getIntersections(halfEdge->origin->point, halfEdge->destination->point, intersections); //restituisce il numero delle intersezioni e salva i p.ti di inteserzione nell'array intersections
-                auto nextInside = box.contains(halfEdge->destination->point);   //variabile bool: true se il vertice di destinazione dell'half-edge è interno alla box, false se è esterno
+                auto nextInside = box.contains(halfEdge->destination->point);   //variabile bool: true se il vertice di destinazione dell'half-edge ï¿½ interno alla box, false se ï¿½ esterno
                 auto nextHalfEdge = halfEdge->next; //prossimo half-edge concatenato a quello in esame
                 //5 casi possibili: (vedi quaderno)
                 //Vertice origine e vertice destinazione entrambi fuori dalla box
@@ -199,25 +199,25 @@ public:
                     //Caso 2. half-edge completamente esterno alla box --> nbIntersections=0
                     if (nbIntersections == 0)
                     {
-                        verticesToRemove.emplace(halfEdge->origin); //inseriamo il vertice di origine dell'half-edge nel set dei vertici da rimuovere (solo il vertice di origine perché tanto scansioniamo tutti gli half-edge)
+                        verticesToRemove.emplace(halfEdge->origin); //inseriamo il vertice di origine dell'half-edge nel set dei vertici da rimuovere (solo il vertice di origine perchï¿½ tanto scansioniamo tutti gli half-edge)
                         removeHalfEdge(halfEdge);   //rimuoviamo l'half-edge
                     }
                     //Caso 5. half-edge attraversa la box 2 volte -->nbIntersections=2
                     else if (nbIntersections == 2)
                     {
                         verticesToRemove.emplace(halfEdge->origin);
-                        //Controlliamo che nella lsta degli half-edge processati non ci sia già il suo twin
+                        //Controlliamo che nella lsta degli half-edge processati non ci sia giï¿½ il suo twin
                         if (processedHalfEdges.find(halfEdge->twin) != processedHalfEdges.end())
-                        {   //se lo è
+                        {   //se lo ï¿½
                             halfEdge->origin = halfEdge->twin->destination; //inverto solo l'half-edge tanto poi l'unordered_set rifiuta i doppioni
-                            halfEdge->destination = halfEdge->twin->origin; //unordered_set rifiuta i doppioni quindi non verrà aggiunto di nuovo al set degli half-edge già scansionati
+                            halfEdge->destination = halfEdge->twin->origin; //unordered_set rifiuta i doppioni quindi non verrï¿½ aggiunto di nuovo al set degli half-edge giï¿½ scansionati
                         }
                         else
-                        {   //se non è mai stato scansionato
+                        {   //se non ï¿½ mai stato scansionato
                             halfEdge->origin = createVertex(intersections[0].point);    //vertice di origine del vettorino che bisogna creare (vedi immagine quaderno)
                             halfEdge->destination = createVertex(intersections[1].point);   //vertice di destinazione del vettorino che bisogna creare (vedi immagine quaderno)
                         }
-                        if (outgoingHalfEdge != nullptr)    //è ora di linkare il vettorino
+                        if (outgoingHalfEdge != nullptr)    //ï¿½ ora di linkare il vettorino
                             link(box, outgoingHalfEdge, outgoingSide, halfEdge, intersections[0].side);
                         if (incomingHalfEdge == nullptr)    //prima volta che si becca quella cella
                         {
@@ -232,12 +232,12 @@ public:
                     else
                         success = false;
                 }
-                //Caso 3. half-edge è uscente dalla box --> nbIntersections=1
+                //Caso 3. half-edge ï¿½ uscente dalla box --> nbIntersections=1
                 else if (inside && !nextInside)
                 {
-                    //Numero intersezioni può essere anche > 1 oltre che = se consideriamo i corner
+                    //Numero intersezioni puï¿½ essere anche > 1 oltre che = se consideriamo i corner
                     if (nbIntersections >= 1)
-                    {   //se nella lista degli half-edge già processati è presente il gemello/twin dell'half-edge in esame
+                    {   //se nella lista degli half-edge giï¿½ processati ï¿½ presente il gemello/twin dell'half-edge in esame
                         if (processedHalfEdges.find(halfEdge->twin) != processedHalfEdges.end())
                             halfEdge->destination = halfEdge->twin->origin; //inverto l'edge, stesso ragionamento(vedi sopra)
                         else    //half-edge mai scansionato
@@ -250,19 +250,19 @@ public:
                     else
                         success = false;
                 }
-                //Caso 4. half-edge è entrante nella box ---> nbIntersections=1
+                //Caso 4. half-edge ï¿½ entrante nella box ---> nbIntersections=1
                 else if (!inside && nextInside)
                 {
-                    //Numero intersezioni può essere anche > 1 oltre che = se consideriamo i corner
+                    //Numero intersezioni puï¿½ essere anche > 1 oltre che = se consideriamo i corner
                     if (nbIntersections >= 1)
                     {
                         verticesToRemove.emplace(halfEdge->origin);
-                        //se nella lista degli half-edge già processati è presente il gemello/twin dell'half-edge in esame
+                        //se nella lista degli half-edge giï¿½ processati ï¿½ presente il gemello/twin dell'half-edge in esame
                         if (processedHalfEdges.find(halfEdge->twin) != processedHalfEdges.end())
                             halfEdge->origin = halfEdge->twin->destination; //inverto l'edge, stesso ragionamento(vedi sopra)
                         else  //half-edge mai scansionato
                             halfEdge->origin = createVertex(intersections[0].point);
-                        if (outgoingHalfEdge != nullptr)    //se l'outgoingHalfEdge della cella è già stato trovato, possiamo linkare
+                        if (outgoingHalfEdge != nullptr)    //se l'outgoingHalfEdge della cella ï¿½ giï¿½ stato trovato, possiamo linkare
                             link(box, outgoingHalfEdge, outgoingSide, halfEdge, intersections[0].side);
                         if (incomingHalfEdge == nullptr)
                         {
@@ -315,8 +315,8 @@ public:
             area *= 0.5;    //area del poligono
             centroid *= 1.0 / (6.0 * area); //centroide del poligono
             centroids.push_back(centroid);  //inserimento nel vettore dei centroidi
-        }   //dopodiché si prosegue con la faccia successiva
-        return centroids;   //restituisce vettore dei centroidi(che verrà sfruttato come vettore parametro per la funzione di costruzione del Diagram)
+        }   //dopodichï¿½ si prosegue con la faccia successiva
+        return centroids;   //restituisce vettore dei centroidi(che verrï¿½ sfruttato come vettore parametro per la funzione di costruzione del Diagram)
     }
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     // Triangulation
@@ -350,7 +350,7 @@ private:
     std::vector<Site> mSites;       //vettore di struct Site (siti/generatori)
     std::vector<Face> mFaces;       //vettore di struct Face (celle di Voronoi)
     std::list<Vertex> mVertices;    //lista di struct Vertex (vertici di Voronoi)
-    std::list<HalfEdge> mHalfEdges; //lista di struct HalfEdge (half-edges) --> ogni edge di una cella è splittato in 2 half-edge
+    std::list<HalfEdge> mHalfEdges; //lista di struct HalfEdge (half-edges) --> ogni edge di una cella ï¿½ splittato in 2 half-edge
     Vector2<T> mGlobalPoint;        //coordinate globali iniziali del sito proprietario del diagramma (possiamo fornire al robot una indicazione della sua posizione iniziale globale e AREA_SIZE???)
 
     //Friendship per rendere accessibile la sezione private alla classe FortuneAlgorithm
@@ -364,7 +364,7 @@ private:
         mFaces.reserve(points.size());  //Riserviamo uno spazio in memoria per la lista delle facce pari al numero di siti introdotti
 
         //Costruzione DCEL in base ad input forniti
-        for (auto i = std::size_t(0); i < points.size(); ++i)   //pre-incremento = più prestazioni
+        for (auto i = std::size_t(0); i < points.size(); ++i)   //pre-incremento = piï¿½ prestazioni
         {   //Inseriamo i siti input nel vettore dei siti --> costruzione mSites e mFaces
             //I siti vengono numerati coerentemente con le posizioni i occupate nel vettore "points" di input e se ne acquisiscono le coordinate x,y sfruttando la notazione associativa ad array
             //-----------ESCLUDI PUNTI FUORI DALLA BOX(centralized)-----------------------------------------------------------------------------
@@ -389,13 +389,13 @@ private:
         //inserire il mainSite
         auto mainSite = Vector2<T>{0.0, 0.0};
 
-        //Marchiamolo come sito index 0 così da averlo sempre in testa (e poterlo sfruttare in seguito per il calcolo del centroide)
+        //Marchiamolo come sito index 0 cosï¿½ da averlo sempre in testa (e poterlo sfruttare in seguito per il calcolo del centroide)
         mSites.push_back(Diagram::Site{0, mainSite, nullptr});
         mFaces.push_back(Diagram::Face{&mSites.back(), nullptr});
         mSites.back().face = &mFaces.back();
 
         //Costruzione DCEL in base ad input forniti
-        for (auto i = std::size_t(0); i < flt_points.size(); ++i)   //pre-incremento = più prestazioni
+        for (auto i = std::size_t(0); i < flt_points.size(); ++i)   //pre-incremento = piï¿½ prestazioni
         {   //Inseriamo i siti input nel vettore dei siti --> costruzione mSites e mFaces
             mSites.push_back(Diagram::Site{i+1, flt_points[i], nullptr});
             //Costruiamo il vettore delle facce mFaces associando i puntatori sito degli elementi Face di mFaces ai siti di mSites
@@ -429,14 +429,22 @@ private:
     //Creazione di un Vertex e inserimento nella lista mVertices
     Vertex* createVertex(Vector2<T> point)  //parametro: point(x,y)
     {
+        // Check number of vertices
+        if (mVertices.size() > 1000)
+        {
+            std::cout << "Too many vertices! (" << mVertices.size() << ")\n";
+            exit(1);
+        }
+
         mVertices.emplace_back();  //Creazione nuovo elemento Vertex di mVertices
         mVertices.back().point = point; //Definizione coordinate in base alle coordinate input della funzione
-        mVertices.back().it = std::prev(mVertices.end());  //Sistemo l'iteratore sull'elemento/vertice appena introdotto-->prev(mVertices.end()) equivale a mVertices.end()-1, operazione necessaria perché end punta sempre al nullptr
+        mVertices.back().it = std::prev(mVertices.end());  //Sistemo l'iteratore sull'elemento/vertice appena introdotto-->prev(mVertices.end()) equivale a mVertices.end()-1, operazione necessaria perchï¿½ end punta sempre al nullptr
         return &mVertices.back();   //restituisce il puntatore all'elemento Vertex appena creato e inserito
     }
     //Creazione vertici corner della box
     Vertex* createCorner(Box<T> box, typename Box<T>::Side side)
-    {   //Funzione varia a seconda del side della box specificato come parametro
+    {   
+        //Funzione varia a seconda del side della box specificato come parametro
         switch (side)
         {
             case Box<T>::Side::Left:
@@ -456,10 +464,10 @@ private:
     {
         mHalfEdges.emplace_back();  //Creazione nuovo elemento HalfEdge di mHalfEdges
         mHalfEdges.back().incidentFace = face;  //Definizione della faccia incidente, ovvero la face input della funzione
-        mHalfEdges.back().it = std::prev(mHalfEdges.end()); //Sistemo l'iteratore sull'elemento/half-edge appena introdotto-->prev(mHalfEdges.end()) equivale a mHalfEdges.end()-1, operazione necessaria perché end punta sempre al nullptr
+        mHalfEdges.back().it = std::prev(mHalfEdges.end()); //Sistemo l'iteratore sull'elemento/half-edge appena introdotto-->prev(mHalfEdges.end()) equivale a mHalfEdges.end()-1, operazione necessaria perchï¿½ end punta sempre al nullptr
         //Nel caso in cui la faccia non punti ancora a nessun half-edge, facciamola puntare all'half-edge appena creato
         if (face->outerComponent == nullptr)
-            face->outerComponent = &mHalfEdges.back();  //si evita così che ci possano essere facce che non puntano a nessun half-edge/outerComponent
+            face->outerComponent = &mHalfEdges.back();  //si evita cosï¿½ che ci possano essere facce che non puntano a nessun half-edge/outerComponent
         return &mHalfEdges.back();  //restituisce il puntatore all'elemento HalfEdge appena creato e inserito
     }
 
@@ -467,15 +475,15 @@ private:
     void link(Box<T> box, HalfEdge* start, typename Box<T>::Side startSide, HalfEdge* end, typename Box<T>::Side endSide)
     {
         auto halfEdge = start; //salvo nella variabile halfedge il puntatore all'half edge iniziale per poterlo utilizzare nel codice
-        auto side = static_cast<int>(startSide); //startSide è una variabile della enum class (LEFT,RIGHT,BOTTOM,UP) quindi faccio il cast trasformandola in numero intero
-        while (side != static_cast<int>(endSide))   //finchè side non arriva al valore endSide
+        auto side = static_cast<int>(startSide); //startSide ï¿½ una variabile della enum class (LEFT,RIGHT,BOTTOM,UP) quindi faccio il cast trasformandola in numero intero
+        while (side != static_cast<int>(endSide))   //finchï¿½ side non arriva al valore endSide
         {
-            side = (side + 1) % 4;  //corrisponde a side++ ma quando arriva a 3 ristarta da 0 anziché incrementare al valore 4. In questo modo c'è perfetta corrispondenza con la enum
+            side = (side + 1) % 4;  //corrisponde a side++ ma quando arriva a 3 ristarta da 0 anzichï¿½ incrementare al valore 4. In questo modo c'ï¿½ perfetta corrispondenza con la enum
             halfEdge->next = createHalfEdge(start->incidentFace);   //creo un nuovo half-edge incidente alla stessa faccia di quello di start
             halfEdge->next->prev = halfEdge;        //aggancio il nuovo creato ad half-edge
             halfEdge->next->origin = halfEdge->destination; //completo l'aggancio settando l'origine del nuovo come destinazione del vecchio
             halfEdge->next->destination = createCorner(box, static_cast<typename Box<T>::Side>(side));  //creo un corner della bounding box nel nodo di arrivo del nuovo half-edge
-            halfEdge = halfEdge->next;  //itero in avanti prendendo come half-edge il nuovo half-edge finché non arrivo all'endside
+            halfEdge = halfEdge->next;  //itero in avanti prendendo come half-edge il nuovo half-edge finchï¿½ non arrivo all'endside
         }
         //Gestione ultimo tratto (vedi quaderno)
         halfEdge->next = createHalfEdge(start->incidentFace);

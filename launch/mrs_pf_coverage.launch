@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <launch>
-    <arg name="ROBOTS_NUM" default="2" />
+    <arg name="ROBOTS_NUM" default="3" />
     <arg name="MODE" default="0" />
     <arg name="ROBOT_FOV" default="160.0" />
     <arg name="ROBOT_RANGE" default="10.0" />
@@ -8,7 +8,7 @@
     <arg name="AREA_SIZE_y" default="60.0" />
     <arg name="AREA_LEFT" default="-30.0" />
     <arg name="AREA_BOTTOM" default="-30.0" />
-    <arg name="GRAPHICS_ON" default="false" />
+    <arg name="GRAPHICS_ON" default="true" />
     <arg name="save_logs" default="false" />
     <arg name="save_cpu" default="false" />
     <arg name="GAUSS_X" default="8.0" />
@@ -18,7 +18,7 @@
 
     <arg name="use_robot_0" default="1" />
     <arg name="use_robot_1" default="1" />
-    <arg name="use_robot_2" default="0" />
+    <arg name="use_robot_2" default="1" />
     <arg name="use_robot_3" default="0" />
     <arg name="use_robot_4" default="0" />
     <arg name="use_robot_5" default="0" />
@@ -96,7 +96,7 @@
         <remap unless="$(arg USE_UVDAR)" from="/uav0/fake_vision" to="/uav0/ground_truth/fake_vision" />
     </node>
 
-    <node if="$(arg use_robot_1)" name="mrs_pf_coverage_1"  pkg="pf_coverage" type="mrs_pf_coverage2">
+    <node if="$(arg use_robot_1)" name="mrs_pf_coverage_1"  pkg="pf_coverage" type="mrs_pf_coverage2" output="screen">
         <param name="ROBOT_ID" value="1" />
         <param name="MODE"  value="$(arg MODE)" />
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
@@ -115,7 +115,7 @@
         <remap unless="$(arg USE_UVDAR)" from="/uav1/fake_vision" to="/uav1/ground_truth/fake_vision" />
     </node>
 
-    <node if="$(arg use_robot_2)" name="mrs_pf_coverage_2"  pkg="pf_coverage" type="mrs_pf_coverage2" >
+    <node if="$(arg use_robot_2)" name="mrs_pf_coverage_2"  pkg="pf_coverage" type="mrs_pf_coverage2" output="screen">
         <param name="ROBOT_ID" value="2" />
         <param name="MODE"  value="$(arg MODE)" />
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />

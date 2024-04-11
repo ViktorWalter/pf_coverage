@@ -4,6 +4,7 @@
     <arg name="MODE" default="0" />
     <arg name="ROBOT_FOV" default="160.0" />
     <arg name="ROBOT_RANGE" default="10.0" />
+    <arg name="SAFETY_DIST" default="4.0" />
     <arg name="AREA_SIZE_x" default="60.0" />
     <arg name="AREA_SIZE_y" default="60.0" />
     <arg name="AREA_LEFT" default="-30.0" />
@@ -83,6 +84,7 @@
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
         <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
         <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="SAFETY_DIST"  value="$(arg SAFETY_DIST)" />
         <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
         <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
         <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
@@ -104,6 +106,7 @@
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
         <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
         <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="SAFETY_DIST"  value="$(arg SAFETY_DIST)" />
         <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
         <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
         <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
@@ -125,6 +128,7 @@
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
         <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
         <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="SAFETY_DIST"  value="$(arg SAFETY_DIST)" />
         <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
         <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
         <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
@@ -135,7 +139,7 @@
         <param name="GAUSS_X" value="$(arg GAUSS_X)" />
         <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
         <param name="GOAL_X" value="-3.0" />
-        <param name="GOAL_Y" value="3.0" />
+        <param name="GOAL_Y" value="0.0" />
 
         <remap unless="$(arg USE_UVDAR)" from="/uav2/fake_vision" to="/uav2/ground_truth/fake_vision" />
     </node>
@@ -146,6 +150,7 @@
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
         <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
         <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="SAFETY_DIST"  value="$(arg SAFETY_DIST)" />
         <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
         <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
         <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
@@ -167,6 +172,7 @@
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
         <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
         <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="SAFETY_DIST"  value="$(arg SAFETY_DIST)" />
         <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
         <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
         <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
@@ -184,6 +190,7 @@
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
         <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
         <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="SAFETY_DIST"  value="$(arg SAFETY_DIST)" />
         <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
         <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
         <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
@@ -201,6 +208,7 @@
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
         <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
         <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="SAFETY_DIST"  value="$(arg SAFETY_DIST)" />
         <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
         <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
         <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
@@ -217,6 +225,7 @@
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
         <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
         <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="SAFETY_DIST"  value="$(arg SAFETY_DIST)" />
         <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
         <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
         <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
@@ -234,6 +243,7 @@
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
         <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
         <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="SAFETY_DIST"  value="$(arg SAFETY_DIST)" />
         <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
         <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
         <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
@@ -251,6 +261,7 @@
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
         <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
         <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="SAFETY_DIST"  value="$(arg SAFETY_DIST)" />
         <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
         <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
         <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
@@ -268,6 +279,7 @@
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
         <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
         <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="SAFETY_DIST"  value="$(arg SAFETY_DIST)" />
         <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
         <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
         <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
@@ -285,6 +297,7 @@
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
         <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
         <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="SAFETY_DIST"  value="$(arg SAFETY_DIST)" />
         <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
         <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
         <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
@@ -302,6 +315,7 @@
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
         <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
         <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="SAFETY_DIST"  value="$(arg SAFETY_DIST)" />
         <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
         <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
         <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
@@ -319,6 +333,7 @@
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
         <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
         <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="SAFETY_DIST"  value="$(arg SAFETY_DIST)" />
         <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
         <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
         <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
@@ -336,6 +351,7 @@
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
         <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
         <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="SAFETY_DIST"  value="$(arg SAFETY_DIST)" />
         <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
         <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
         <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
@@ -353,6 +369,7 @@
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
         <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
         <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="SAFETY_DIST"  value="$(arg SAFETY_DIST)" />
         <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
         <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
         <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
@@ -368,6 +385,7 @@
         <param name="ROBOT_ID" value="16" />
         <param name="MODE"  value="$(arg MODE)" />
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
+        <param name="SAFETY_DIST"  value="$(arg SAFETY_DIST)" />
         <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
         <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
         <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
@@ -387,6 +405,7 @@
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
         <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
         <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="SAFETY_DIST"  value="$(arg SAFETY_DIST)" />
         <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
         <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
         <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
@@ -404,6 +423,7 @@
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
         <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
         <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
+        <param name="SAFETY_DIST"  value="$(arg SAFETY_DIST)" />
         <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
         <param name="AREA_SIZE_y"  value="$(arg AREA_SIZE_y)" />
         <param name="AREA_LEFT"  value="$(arg AREA_LEFT)" />
@@ -419,6 +439,7 @@
         <param name="ROBOT_ID" value="19" />
         <param name="MODE"  value="$(arg MODE)" />
         <param name="ROBOTS_NUM"  value="$(arg ROBOTS_NUM)" />
+        <param name="SAFETY_DIST"  value="$(arg SAFETY_DIST)" />
         <param name="ROBOT_FOV"  value="$(arg ROBOT_FOV)" />
         <param name="ROBOT_RANGE"  value="$(arg ROBOT_RANGE)" />
         <param name="AREA_SIZE_x"  value="$(arg AREA_SIZE_x)" />
