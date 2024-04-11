@@ -514,7 +514,7 @@ Eigen::VectorXd Controller::getWheelVelocity(Eigen::VectorXd u, double alpha)
 void Controller::cbf_coverage2()
 {
     auto timerstart = std::chrono::high_resolution_clock::now();
-    Eigen::Vector3d processCovariance = 0.25 * Eigen::Vector3d::Ones();
+    Eigen::Vector3d processCovariance = 0.5 * Eigen::Vector3d::Ones();
     Eigen::Vector3d robot; // controlled robot's global position
     robot << this->pose_x(ROBOT_ID), this->pose_y(ROBOT_ID), this->pose_theta(ROBOT_ID);
     Eigen::MatrixXd samples(3, parts); // particles' global position
@@ -601,7 +601,7 @@ void Controller::cbf_coverage2()
 
                 // std::cout << "sigma x: " << covariances[j](0,0) << ", sigma y: " << covariances[j](1,1) << std::endl;
                 // filters[c]->updateWeights2d(p_j.col(j), covariances[j](0,0), covariances[j](1,1));
-                filters[c]->updateWeights(p_j.col(j), 0.2);
+                filters[c]->updateWeights(p_j.col(j), 0.25);
             }
             else
             {
@@ -798,7 +798,7 @@ void Controller::cbf_coverage2()
     for (int i = 0; i < distances.size(); i++)
     {
         // slack.col(i) =  slack_max.cwiseProduct(sigmoid(2*(distances[i] - 2*SAFETY_DIST)) * Eigen::VectorXd::Ones(4)) + slack_neg.col(i);
-        slack.col(i) = slack_max.cwiseProduct(sigmoid(distances[i] - 2*dist_lim) * Eigen::VectorXd::Ones(4)); // + slack_neg.col(i);
+        slack.col(i) = slack_max.cwiseProduct(sigmoid(2*(distances[i] - 3*dist_lim)) * Eigen::VectorXd::Ones(4)); // + slack_neg.col(i);
     }
 
     // slack.row(3) = 100000 * Eigen::VectorXd::Ones(ROBOTS_NUM-1);
@@ -1023,8 +1023,8 @@ void Controller::cbf_coverage2()
     // vel_msg.header.frame_id = "/hummingbird" + std::to_string(ROBOT_ID) + "/base_link";
     vel_msg.reference.velocity.x = uopt(0);
     vel_msg.reference.velocity.y = uopt(1);
-    vel_msg.reference.altitude = 2.0;
-    vel_msg.reference.use_altitude = false;
+    vel_msg.reference.altitude = 3.0;
+    vel_msg.reference.use_altitude = true;
     vel_msg.reference.heading_rate = uopt(2);
     vel_msg.reference.use_heading_rate = true;
     this->velPub_[0].publish(vel_msg);
