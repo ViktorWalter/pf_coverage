@@ -64,10 +64,10 @@ using namespace std::chrono_literals;
 using std::placeholders::_1;
 
 // Robots parameters ------------------------------------------------------
-double SAFETY_DIST = 2.0;
+// double SAFETY_DIST = 4.0;
 const double MAX_LIN_VEL = 0.5; // set to turtlebot max velocities
 // const double MAX_ANG_VEL = 2*M_PI*MAX_LIN_VEL/SAFETY_DIST;
-const double MAX_ANG_VEL = 0.5;
+const double MAX_ANG_VEL = 0.1;
 const double b = 0.025; // for differential drive control (only if we are moving a differential drive robot (e.g. turtlebot))
 //------------------------------------------------------------------------
 const bool centralized_centroids = false; // compute centroids using centralized computed voronoi diagram
@@ -102,6 +102,7 @@ public:
         // Range di percezione singolo robot (= metà lato box locale)
         this->nh_priv_.getParam("ROBOT_RANGE", ROBOT_RANGE);
         this->nh_priv_.getParam("ROBOT_FOV", ROBOT_FOV);
+        this->nh_priv_.getParam("SAFETY_DIST", SAFETY_DIST);
 
         // view graphical voronoi rapresentation - bool
         this->nh_priv_.getParam("GRAPHICS_ON", GRAPHICS_ON);
@@ -175,13 +176,13 @@ public:
         std::cout << "============ SLACK SATURATION VALUES =================\n"
                   << slack_max.transpose() << "\n==========================\n";
 
-        vision_controller.init(2.79, SAFETY_DIST, ROBOT_RANGE, ROBOTS_NUM - 1);
+        vision_controller.init(0.75*fov, SAFETY_DIST, ROBOT_RANGE, ROBOTS_NUM - 1);
         vision_controller.setVerbose(false);
         vision_controller.setVelBounds(-MAX_LIN_VEL, MAX_LIN_VEL);
         vision_controller.setGamma(1.0, 1.0);
         // safety_controller.setVerbose(false);
 
-        hqp_solver.init(2.79, SAFETY_DIST, ROBOT_RANGE, ROBOTS_NUM - 1);
+        hqp_solver.init(0.75*fov, SAFETY_DIST, ROBOT_RANGE, ROBOTS_NUM - 1);
         hqp_solver.setVerbose(false);
 
         parts = std::round(PARTICLES_NUM / (ROBOTS_NUM - 1));
@@ -320,6 +321,7 @@ private:
     double ROBOT_RANGE = 10.0;
     int ROBOT_ID = 0;
     double ROBOT_FOV = 160.0;
+    double SAFETY_DIST = 4.0;
     int MODE = 0;
     double GOAL_X = 10.0;
     double GOAL_Y = 10.0;
@@ -608,7 +610,7 @@ void Controller::loop()
                 // std::cout << "wheels velocity: " << u_est.transpose() << std::endl;
                 // Eigen::Vector3d processCovariance = 0.5*Eigen::Vector3d::Ones();
                 filters[c]->setProcessCovariance(processCovariance);
-                filters[c]->predictUAV(0.5 * u_ax, dt);
+                filters[c]->predictUAV(0.1 * u_ax, dt);
                 // std::cout << "Prediction completed" << std::endl;
 
                 // std::cout << "sigma x: " << covariances[j](0,0) << ", sigma y: " << covariances[j](1,1) << std::endl;
@@ -635,7 +637,7 @@ void Controller::loop()
                 // Get particles in required format
                 Eigen::MatrixXd particles = filters[c]->getParticles();
                 // std::vector<Eigen::VectorXd> samples;
-                //---- PARTICLES DELETION --------- 
+                /*---- PARTICLES DELETION --------- 
                 Eigen::VectorXd weights = filters[c]->getWeights();
                 double w_min =  weights.minCoeff();
                 std::cout << "*********\nMinimum weight: " << w_min << "\n************\n";
@@ -650,7 +652,7 @@ void Controller::loop()
                 }
                 // std::cout << "Particles converted to required format" << std::endl;
                 filters[c]->setWeights(weights); // update weights
-                /*--------------------- PARTICLES DELETION ---------------*/
+                --------------------- PARTICLES DELETION ---------------*/
             }
 
             filters[c]->resample();
@@ -960,7 +962,7 @@ void Controller::loop()
     double head_err = head_des - this->pose_theta(ROBOT_ID);
     udes(0) = 0.8 * (GOAL_X - this->pose_x(ROBOT_ID));
     udes(1) = 0.8 * (GOAL_Y - this->pose_y(ROBOT_ID));
-    udes(2) = head_err;
+    udes(2) = 0.8 * head_err;
 
     udes = boundVel(udes);
 
