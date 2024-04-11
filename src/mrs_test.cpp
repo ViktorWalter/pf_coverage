@@ -178,7 +178,7 @@ public:
 
         vision_controller.init(0.75*fov, SAFETY_DIST, ROBOT_RANGE, ROBOTS_NUM - 1);
         vision_controller.setVerbose(false);
-        vision_controller.setVelBounds(-MAX_LIN_VEL, MAX_LIN_VEL);
+        vision_controller.setVelBounds(-MAX_LIN_VEL, MAX_LIN_VEL, -MAX_ANG_VEL, MAX_ANG_VEL);
         vision_controller.setGamma(1.0, 1.0);
         // safety_controller.setVerbose(false);
 
