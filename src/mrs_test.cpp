@@ -1613,9 +1613,12 @@ int main(int argc, char **argv)
     // rclcpp::sleep_for(100000000ns);
     // rclcpp::shutdown();
 
+    ros::Duration sleeper(0.01);
+
     while (!node_shutdown_request)
     {
         ros::spinOnce();
+        sleeper.sleep();
     }
     node->stop();
 
