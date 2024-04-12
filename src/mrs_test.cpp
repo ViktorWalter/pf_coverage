@@ -52,6 +52,7 @@
 // MRS imports
 #include <mrs_msgs/VelocityReferenceStamped.h>
 #include <mrs_msgs/PoseWithCovarianceArrayStamped.h>
+#include <mrs_lib/transformer.h>
 
 // Custom libraries
 #include "particle_filter/particle_filter.h"
@@ -128,12 +129,13 @@ public:
             realposeSub_.push_back(nh_.subscribe<nav_msgs::Odometry>("/uav" + std::to_string(i) + "/estimation_manager/odom_main", 1, std::bind(&Controller::realposeCallback, this, std::placeholders::_1, i)));
         }
 
-        odomSub_ = nh_.subscribe<nav_msgs::Odometry>("/uav" + std::to_string(ROBOT_ID) + "/estimation_manager/gps_garmin/odom/local", 1, std::bind(&Controller::odomCallback, this, std::placeholders::_1));
-        globalOdomSub_ = nh_.subscribe<nav_msgs::Odometry>("/uav" + std::to_string(ROBOT_ID) + "/estimation_manager/gps_garmin/odom", 1, std::bind(&Controller::globalOdomCallback, this, std::placeholders::_1));
+        // odomSub_ = nh_.subscribe<nav_msgs::Odometry>("/uav" + std::to_string(ROBOT_ID) + "/estimation_manager/gps_garmin/odom/local", 1, std::bind(&Controller::odomCallback, this, std::placeholders::_1));
+        // globalOdomSub_ = nh_.subscribe<nav_msgs::Odometry>("/uav" + std::to_string(ROBOT_ID) + "/estimation_manager/gps_garmin/odom", 1, std::bind(&Controller::globalOdomCallback, this, std::placeholders::_1));
         neighSub_ = nh_.subscribe<mrs_msgs::PoseWithCovarianceArrayStamped>("/uav" + std::to_string(ROBOT_ID) + "/fake_vision", 1, std::bind(&Controller::neighCallback, this, std::placeholders::_1));
         joySub_ = nh_.subscribe<geometry_msgs::Twist>("/cmd_vel", 1, std::bind(&Controller::vel_callback, this, std::placeholders::_1));
         velPub_.push_back(nh_.advertise<mrs_msgs::VelocityReferenceStamped>("/uav" + std::to_string(ROBOT_ID) + "/control_manager/velocity_reference", 1));
         timer_ = nh_.createTimer(ros::Duration(0.1), std::bind(&Controller::loop, this));
+        tf_timer_ = nh_.createTimer(ros::Duration(0.1), std::bind(&Controller::tf_callback, this));
 
         // RViz visualization
         rangePub_ = nh_.advertise<sensor_msgs::Range>("/uav" + std::to_string(ROBOT_ID) + "/fov", 1);
@@ -185,6 +187,9 @@ public:
 
         hqp_solver.init(0.75*fov, SAFETY_DIST, ROBOT_RANGE, ROBOTS_NUM - 1);
         hqp_solver.setVerbose(false);
+
+        transformer_ = mrs_lib::Transformer("Controller");
+        transformer_.setDefaultPrefix("uav"+std::to_string(ROBOT_ID));
 
         parts = std::round(PARTICLES_NUM / (ROBOTS_NUM - 1));
         for (int i = 0; i < ROBOTS_NUM - 1; i++)
@@ -295,6 +300,7 @@ public:
     Eigen::MatrixXd Diag_Matrix(Eigen::VectorXd V);
     void cbf_coverage();
     void loop();
+    void tf_callback();
     void pf_coverage();
     bool insideFOV(Eigen::VectorXd q, Eigen::VectorXd q_obs, double fov, double r_sens);
     bool is_outlier(Eigen::VectorXd q, Eigen::VectorXd mean, Eigen::MatrixXd cov_matrix, double threshold);
@@ -366,8 +372,10 @@ private:
     ros::Publisher rangePub_;
     ros::Publisher covPub_; 
     ros::Timer timer_;
+    ros::Timer tf_timer_;
 
     sensor_msgs::Range fov_msg;
+    mrs_lib::Transformer transformer_;
 
     // ------------------------------- Particle Filter ----------------------------------
     std::vector<ParticleFilter *> filters;
@@ -562,7 +570,10 @@ void Controller::loop()
     }
     */
 
-    std::cout << "I'm robot " << ROBOT_ID << " in position : " << this->pose_x(ROBOT_ID) << ", " << this->pose_y(ROBOT_ID) << std::endl;
+    std::cout << "~~~~~~~~~~~~~~~~~~\n";
+    std::cout << "I'm robot " << ROBOT_ID << " in local position : " << this->pose_x(ROBOT_ID) << ", " << this->pose_y(ROBOT_ID) << std::endl;
+    std::cout << "I'm robot " << ROBOT_ID << " in global position : " << p_j.col(ROBOT_ID).transpose() << std::endl;
+    std::cout << "~~~~~~~~~~~~~~~~~~\n";
 
     if (SAVE_LOGS)
     {
@@ -1266,6 +1277,53 @@ void Controller::globalOdomCallback(const nav_msgs::Odometry::ConstPtr msg)
 
     // std::cout << "I'm in odomCallback" << "\n";
     // std::cout << "Robot position: " << this->pose_x(ROBOT_ID) << ", " << this->pose_y(ROBOT_ID) << ", " << this->pose_theta(ROBOT_ID) << "\n";
+}
+
+void Controller::tf_callback()
+{
+    // Update /local_odom --> /fcu
+    auto fcu = transformer_.getTransform("uav"+std::to_string(ROBOT_ID)+"/fcu","uav"+std::to_string(ROBOT_ID)+"/local_origin");
+    if (!fcu)
+    {
+        std::cout << "Transform Not found from " << "uav"+std::to_string(ROBOT_ID)+"/fcu to uav"+std::to_string(ROBOT_ID)+"/local_origin";
+    } else
+    {
+        // std::cout << "Transformer value: " << fcu.value() << std::endl;
+        this->pose_x(ROBOT_ID) = fcu->transform.translation.x;
+        this->pose_y(ROBOT_ID) = fcu->transform.translation.y;
+        tf2::Quaternion q(
+        fcu->transform.rotation.x,
+        fcu->transform.rotation.y,
+        fcu->transform.rotation.z,
+        fcu->transform.rotation.w);
+        tf2::Matrix3x3 m(q);
+        double roll, pitch, yaw;
+        m.getRPY(roll, pitch, yaw);
+
+        this->pose_theta(ROBOT_ID) = yaw;
+    }
+
+    // Update /world_origin -> /fcu
+    auto fcu_global = transformer_.getTransform("uav"+std::to_string(ROBOT_ID)+"/fcu","uav"+std::to_string(ROBOT_ID)+"/world_origin");
+    if (!fcu_global)
+    {
+        std::cout << "Transform Not found from " << "uav"+std::to_string(ROBOT_ID)+"/fcu to uav"+std::to_string(ROBOT_ID)+"/world_origin";
+    } else
+    {
+        // std::cout << "Transformer value: " << fcu.value() << std::endl;
+        p_j(0, ROBOT_ID) = fcu_global->transform.translation.x;
+        p_j(1, ROBOT_ID) = fcu_global->transform.translation.y;
+        tf2::Quaternion q(
+        fcu_global->transform.rotation.x,
+        fcu_global->transform.rotation.y,
+        fcu_global->transform.rotation.z,
+        fcu_global->transform.rotation.w);
+        tf2::Matrix3x3 m(q);
+        double roll, pitch, yaw;
+        m.getRPY(roll, pitch, yaw);
+
+        p_j(2, ROBOT_ID) = yaw;
+    }
 }
 
 void Controller::neighCallback(const mrs_msgs::PoseWithCovarianceArrayStamped::ConstPtr msg)

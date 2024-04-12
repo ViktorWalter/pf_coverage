@@ -31,6 +31,7 @@
 #include <tf2_ros/transform_broadcaster.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <tf2_ros/transform_listener.h>
+#include <mrs_lib/transformer.h>
 
 
 #define M_PI   3.14159265358979323846  /*pi*/
@@ -65,16 +66,20 @@ public:
         p_j_real.resize(3, ROBOTS_NUM);
         p_j_real.setZero();
 
-        for (int i = 0; i < ROBOTS_NUM; i++)
+        /*for (int i = 0; i < ROBOTS_NUM; i++)
         {
             odomSubs_.push_back(nh_.subscribe<nav_msgs::Odometry>("/uav" + std::to_string(i) + "/estimation_manager/gps_garmin/odom/local", 1, std::bind(&Controller::odomCallback, this, std::placeholders::_1, i)));
-        }
+        }*/
 
         // odomSub_ = nh_.subscribe<nav_msgs::Odometry>("/uav" + std::to_string(ROBOT_ID) + "/estimation_manager/odom_main", 1, std::bind(&Controller::odomCallback, this, std::placeholders::_1));
         neighSub_ = nh_.subscribe<mrs_msgs::PoseWithCovarianceArrayStamped>("/uav" + std::to_string(ROBOT_ID) + "/uvdar/measuredPoses", 1, std::bind(&Controller::neighCallback, this, std::placeholders::_1));
         pub_ = nh_.advertise<mrs_msgs::PoseWithCovarianceArrayStamped>("uav" + std::to_string(ROBOT_ID) + "/fake_vision", 1);
         fakepub_ = nh_.advertise<mrs_msgs::PoseWithCovarianceArrayStamped>("uav" + std::to_string(ROBOT_ID) + "/ground_truth/fake_vision", 1);
         timer_ = nh_.createTimer(ros::Duration(0.1), std::bind(&Controller::timer_callback, this));
+        tf_timer_ = nh_.createTimer(ros::Duration(0.1), std::bind(&Controller::tf_callback, this));
+
+        transformer_ = mrs_lib::Transformer("VisionSim");
+        transformer_.setDefaultPrefix("uav"+std::to_string(ROBOT_ID));
 
     }
     
@@ -89,6 +94,7 @@ public:
     void odomCallback(const nav_msgs::Odometry::ConstPtr msg, int i);
     bool insideFOV(Eigen::VectorXd q, Eigen::VectorXd q_obs, double fov, double r_sens);
     void timer_callback();
+    void tf_callback();
 
 private:
     int ROBOT_ID = 0;
@@ -110,6 +116,9 @@ private:
     ros::Publisher pub_;
     ros::Publisher fakepub_;
     ros::Timer timer_;
+    ros::Timer tf_timer_;
+
+    mrs_lib::Transformer transformer_;
 
 };
 
@@ -192,6 +201,7 @@ void Controller::neighCallback(const mrs_msgs::PoseWithCovarianceArrayStamped::C
     // std::cout << "Global position of robots: \n" << p_j << std::endl;
 }
 
+
 void Controller::odomCallback(const nav_msgs::Odometry::ConstPtr msg, int i)
 {
     std::vector<bool> received(ROBOTS_NUM, false);
@@ -261,6 +271,33 @@ void Controller::odomCallback(const nav_msgs::Odometry::ConstPtr msg, int i)
 
     this->pub_.publish(msg_filtered);*/
     // std::cout << "Global position of robots: \n" << p_j << std::endl;
+}
+
+void Controller::tf_callback()
+{
+    // Update tf
+    auto fcu = transformer_.getTransform("uav"+std::to_string(ROBOT_ID)+"/fcu","uav"+std::to_string(ROBOT_ID)+"/local_origin");
+    if (!fcu)
+    {
+        std::cout << "Transform Not found from " << "uav"+std::to_string(ROBOT_ID)+"/fcu to uav"+std::to_string(ROBOT_ID)+"/local_origin";
+    } else
+    {
+        // std::cout << "Transformer value: " << fcu.value() << std::endl;
+        p_i(0) = fcu->transform.translation.x;
+        p_i(1) = fcu->transform.translation.y;
+        tf2::Quaternion q(
+        fcu->transform.rotation.x,
+        fcu->transform.rotation.y,
+        fcu->transform.rotation.z,
+        fcu->transform.rotation.w);
+        tf2::Matrix3x3 m(q);
+        double roll, pitch, yaw;
+        m.getRPY(roll, pitch, yaw);
+
+        p_i(2) = yaw;
+
+        std::cout << "I'm robot " << ROBOT_ID << " in position " << p_i.transpose() << std::endl;
+    }
 }
 
 void Controller::timer_callback()

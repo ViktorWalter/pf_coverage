@@ -15,6 +15,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf2
   tf2_ros
   visualization_msgs
+  mrs_lib
 )
 find_package(SFML REQUIRED COMPONENTS graphics window system)
 find_package(particle_filter REQUIRED)
@@ -152,6 +153,7 @@ set(dependencies
   "vision_control"
   "hqp"
   "mrs_msgs"
+  "mrs_lib"
 )
 
 set(SFML_libraries
