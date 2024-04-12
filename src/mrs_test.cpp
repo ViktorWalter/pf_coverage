@@ -129,6 +129,7 @@ public:
         }
 
         odomSub_ = nh_.subscribe<nav_msgs::Odometry>("/uav" + std::to_string(ROBOT_ID) + "/estimation_manager/gps_garmin/odom/local", 1, std::bind(&Controller::odomCallback, this, std::placeholders::_1));
+        globalOdomSub_ = nh_.subscribe<nav_msgs::Odometry>("/uav" + std::to_string(ROBOT_ID) + "/estimation_manager/gps_garmin/odom", 1, std::bind(&Controller::globalOdomCallback, this, std::placeholders::_1));
         neighSub_ = nh_.subscribe<mrs_msgs::PoseWithCovarianceArrayStamped>("/uav" + std::to_string(ROBOT_ID) + "/fake_vision", 1, std::bind(&Controller::neighCallback, this, std::placeholders::_1));
         joySub_ = nh_.subscribe<geometry_msgs::Twist>("/cmd_vel", 1, std::bind(&Controller::vel_callback, this, std::placeholders::_1));
         velPub_.push_back(nh_.advertise<mrs_msgs::VelocityReferenceStamped>("/uav" + std::to_string(ROBOT_ID) + "/control_manager/velocity_reference", 1));
@@ -286,6 +287,7 @@ public:
     void test_print();
     void realposeCallback(const nav_msgs::Odometry::ConstPtr msg, int i);
     void odomCallback(const nav_msgs::Odometry::ConstPtr msg);
+    void globalOdomCallback(const nav_msgs::Odometry::ConstPtr msg);
     void neighCallback(const mrs_msgs::PoseWithCovarianceArrayStamped::ConstPtr msg);
     void joy_callback(const geometry_msgs::Twist::ConstPtr msg);
     void vel_callback(const geometry_msgs::Twist::ConstPtr &msg);
@@ -357,6 +359,7 @@ private:
     //------------------------- Publishers and subscribers ------------------------------
     std::vector<ros::Publisher> velPub_;
     ros::Subscriber odomSub_;
+    ros::Subscriber globalOdomSub_;
     ros::Subscriber neighSub_;
     ros::Subscriber joySub_;
     std::vector<ros::Subscriber> realposeSub_;
@@ -559,6 +562,8 @@ void Controller::loop()
     }
     */
 
+    std::cout << "I'm robot " << ROBOT_ID << " in position : " << this->pose_x(ROBOT_ID) << ", " << this->pose_y(ROBOT_ID) << std::endl;
+
     if (SAVE_LOGS)
     {
         std::string txt;
@@ -582,7 +587,7 @@ void Controller::loop()
             // Check if the robot is detected
             if (this->pose_x(j) < 100.0 && this->pose_y(j) < 100.0)
             {
-                // std::cout << "Robot " << j << " detected in " << this->pose_x(j) << ", " << this->pose_y(j) << std::endl;
+                std::cout << "Robot " << j << " detected in " << this->pose_x(j) << ", " << this->pose_y(j) << std::endl;
                 detected[c] = true;
                 detected_counter++;
                 if (this->pose_x(j) == 0.0 && this->pose_y(j) == 0.0)
@@ -621,7 +626,7 @@ void Controller::loop()
             else
             {
                 // Case 2: robot not detected
-                // std::cout << "Robot " << j << " not detected." << std::endl;
+                std::cout << "Robot " << j << " not detected. Relative position: " << p_j.col(j).transpose()  << std::endl;
                 // Estimate velocity of the lost robot for coverage
                 Eigen::VectorXd q_est = filters[c]->getMean();
                 // std::cout << "Estimated state: " << q_est.transpose() << std::endl;
@@ -637,7 +642,7 @@ void Controller::loop()
                 // Get particles in required format
                 Eigen::MatrixXd particles = filters[c]->getParticles();
                 // std::vector<Eigen::VectorXd> samples;
-                /*---- PARTICLES DELETION --------- 
+                /*---- PARTICLES DELETION --------- */
                 Eigen::VectorXd weights = filters[c]->getWeights();
                 double w_min =  weights.minCoeff();
                 std::cout << "*********\nMinimum weight: " << w_min << "\n************\n";
@@ -652,7 +657,7 @@ void Controller::loop()
                 }
                 // std::cout << "Particles converted to required format" << std::endl;
                 filters[c]->setWeights(weights); // update weights
-                --------------------- PARTICLES DELETION ---------------*/
+                /*-------------------- PARTICLES DELETION ---------------*/
             }
 
             filters[c]->resample();
@@ -687,16 +692,17 @@ void Controller::loop()
             Vector2<double> n;
             n.x = this->realpose_x(i);
             n.y = this->realpose_y(i);
-            this->app_gui->drawPoint(n, color);
+            // this->app_gui->drawPoint(n, color);
             Vector2<double> nn;
             auto c2 = sf::Color(255, 102, 255);
             nn.x = p_j(0, i);
             nn.y = p_j(1, i);
-            this->app_gui->drawPoint(nn, c2);
+            // this->app_gui->drawPoint(nn, c2);
             // this->app_gui->drawID(n, i, color);
         }
 
-        // this->app_gui->drawPoint(me);
+        Vector2<double> me = {p_j(0, ROBOT_ID), p_j(1, ROBOT_ID)};
+        this->app_gui->drawPoint(me, sf::Color(255, 0, 0));
         // this->app_gui->drawParticles(samples_mat);
 
         for (int i = 0; i < filters.size(); i++)
@@ -958,10 +964,10 @@ void Controller::loop()
 
     // Move to the goal
     Eigen::Vector3d udes;
-    double head_des = atan2(GOAL_Y-this->pose_y(ROBOT_ID), GOAL_X-this->pose_x(ROBOT_ID));
-    double head_err = head_des - this->pose_theta(ROBOT_ID);
-    udes(0) = 0.8 * (GOAL_X - this->pose_x(ROBOT_ID));
-    udes(1) = 0.8 * (GOAL_Y - this->pose_y(ROBOT_ID));
+    double head_des = atan2(GOAL_Y-p_j(1, ROBOT_ID), GOAL_X-p_j(0, ROBOT_ID));
+    double head_err = head_des - p_j(2, ROBOT_ID);
+    udes(0) = 0.8 * (GOAL_X - p_j(0, ROBOT_ID));
+    udes(1) = 0.8 * (GOAL_Y - p_j(1, ROBOT_ID));
     udes(2) = 0.8 * head_err;
 
     udes = boundVel(udes);
@@ -1232,9 +1238,31 @@ void Controller::odomCallback(const nav_msgs::Odometry::ConstPtr msg)
 
     this->pose_theta(ROBOT_ID) = yaw;
 
+    /*
     p_j(0, ROBOT_ID) = this->pose_x(ROBOT_ID);
     p_j(1, ROBOT_ID) = this->pose_y(ROBOT_ID);
     p_j(2, ROBOT_ID) = this->pose_theta(ROBOT_ID);
+    */
+
+    // std::cout << "I'm in odomCallback" << "\n";
+    // std::cout << "Robot position: " << this->pose_x(ROBOT_ID) << ", " << this->pose_y(ROBOT_ID) << ", " << this->pose_theta(ROBOT_ID) << "\n";
+}
+
+void Controller::globalOdomCallback(const nav_msgs::Odometry::ConstPtr msg)
+{
+    tf2::Quaternion q(
+        msg->pose.pose.orientation.x,
+        msg->pose.pose.orientation.y,
+        msg->pose.pose.orientation.z,
+        msg->pose.pose.orientation.w);
+    tf2::Matrix3x3 m(q);
+    double roll, pitch, yaw;
+    m.getRPY(roll, pitch, yaw);
+
+
+    p_j(0, ROBOT_ID) = msg->pose.pose.position.x;
+    p_j(1, ROBOT_ID) = msg->pose.pose.position.y;
+    p_j(2, ROBOT_ID) = yaw;
 
     // std::cout << "I'm in odomCallback" << "\n";
     // std::cout << "Robot position: " << this->pose_x(ROBOT_ID) << ", " << this->pose_y(ROBOT_ID) << ", " << this->pose_theta(ROBOT_ID) << "\n";

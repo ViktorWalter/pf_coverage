@@ -4,7 +4,7 @@
     <arg name="MODE" default="0" />
     <arg name="ROBOT_FOV" default="160.0" />
     <arg name="ROBOT_RANGE" default="10.0" />
-    <arg name="SAFETY_DIST" default="4.0" />
+    <arg name="SAFETY_DIST" default="3.0" />
     <arg name="AREA_SIZE_x" default="60.0" />
     <arg name="AREA_SIZE_y" default="60.0" />
     <arg name="AREA_LEFT" default="-30.0" />
