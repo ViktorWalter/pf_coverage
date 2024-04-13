@@ -174,12 +174,13 @@ public:
         // slack_max(2) = -pow(SAFETY_DIST,2);
         slack_max(2) = 0.0; // safety constraint is always hard
         slack_max(3) = -(pow(AREA_SIZE_x, 2) + pow(AREA_SIZE_y, 2)) + pow(ROBOT_RANGE, 2);
+        slack_max(3) = 0.01 * slack_max(3);
         slack_max = slack_max.cwiseAbs();
         std::cout << "Number of robots : " << ROBOTS_NUM << std::endl;
         std::cout << "============ SLACK SATURATION VALUES =================\n"
                   << slack_max.transpose() << "\n==========================\n";
 
-        vision_controller.init(0.75*fov, SAFETY_DIST, ROBOT_RANGE, ROBOTS_NUM - 1);
+        vision_controller.init(0.5*fov, SAFETY_DIST, ROBOT_RANGE, ROBOTS_NUM - 1);
         vision_controller.setVerbose(false);
         vision_controller.setVelBounds(-MAX_LIN_VEL, MAX_LIN_VEL, -MAX_ANG_VEL, MAX_ANG_VEL);
         vision_controller.setGamma(1.0, 1.0);
@@ -537,7 +538,7 @@ Eigen::VectorXd Controller::getWheelVelocity(Eigen::VectorXd u, double alpha)
 void Controller::loop()
 {
     auto timerstart = std::chrono::high_resolution_clock::now();
-    Eigen::Vector3d processCovariance = 0.25 * Eigen::Vector3d::Ones();
+    Eigen::Vector3d processCovariance = 0.5 * Eigen::Vector3d::Ones();
     Eigen::Vector3d robot; // controlled robot's global position
     robot << this->pose_x(ROBOT_ID), this->pose_y(ROBOT_ID), this->pose_theta(ROBOT_ID);
     Eigen::MatrixXd samples(3, parts); // particles' global position
@@ -626,13 +627,13 @@ void Controller::loop()
                 // std::cout << "wheels velocity: " << u_est.transpose() << std::endl;
                 // Eigen::Vector3d processCovariance = 0.5*Eigen::Vector3d::Ones();
                 filters[c]->setProcessCovariance(processCovariance);
-                filters[c]->predictUAV(0.1 * u_ax, dt);
+                filters[c]->predictUAV(0.0 * u_ax, dt);
                 // std::cout << "Prediction completed" << std::endl;
 
                 // std::cout << "sigma x: " << covariances[j](0,0) << ", sigma y: " << covariances[j](1,1) << std::endl;
                 // filters[c]->updateWeights2d(p_j.col(j), covariances[j](0,0), covariances[j](1,1));
                 // filters[c]->updateWeightsWithCovariance(p_j.col(j), covariances[j]);
-                filters[c]->updateWeights(p_j.col(j), 0.5);
+                filters[c]->updateWeights(p_j.col(j), 0.25);
             }
             else
             {
@@ -647,13 +648,13 @@ void Controller::loop()
                 // u_est = getWheelVelocity(u_ax, q_est(2));                               // get wheel velocity [v_l, v_r] to reach the mean point
                 // std::cout << "wheels velocity: " << u_est.transpose() << std::endl;
                 filters[c]->setProcessCovariance(processCovariance);
-                filters[c]->predictUAV(0.5 * u_ax, dt);
+                filters[c]->predictUAV(0.0 * u_ax, dt);
                 // std::cout << "Prediction completed" << std::endl;
 
                 // Get particles in required format
                 Eigen::MatrixXd particles = filters[c]->getParticles();
                 // std::vector<Eigen::VectorXd> samples;
-                /*---- PARTICLES DELETION --------- */
+                /*---- PARTICLES DELETION --------- 
                 Eigen::VectorXd weights = filters[c]->getWeights();
                 double w_min =  weights.minCoeff();
                 std::cout << "*********\nMinimum weight: " << w_min << "\n************\n";
@@ -668,7 +669,7 @@ void Controller::loop()
                 }
                 // std::cout << "Particles converted to required format" << std::endl;
                 filters[c]->setWeights(weights); // update weights
-                /*-------------------- PARTICLES DELETION ---------------*/
+                -------------------- PARTICLES DELETION ---------------*/
             }
 
             filters[c]->resample();
@@ -996,7 +997,7 @@ void Controller::loop()
     // std::cout << "Local position of centroid: " << centroid_local.transpose() << "\n";
     // std::cout << "Desired local velocity for robot " << this->ROBOT_ID <<": " << udes_loc.transpose() << "\n";
     std::cout  << "Slack variables matrix: \n--------------------------\n" << slack.transpose() << "\n--------------------------------\n";
-
+    // slack_mat.setZero();
     // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! p_j_est !!!!!!!!!!!!!!!!!!!
     if (!vision_controller.applyCbf(utemp_loc, udes_loc, p_j_mat, slack_mat)) // slack variables equal to 0 in dangerous conditions -> hard constraint
     {
