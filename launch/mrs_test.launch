@@ -94,7 +94,7 @@
         <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
         <param name="GAUSS_X" value="$(arg GAUSS_X)" />
         <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
-        <param name="GOAL_X" value="3.0" />
+        <param name="GOAL_X" value="0.0" />
         <param name="GOAL_Y" value="-3.0" />
 
         <remap unless="$(arg USE_UVDAR)" from="/uav0/fake_vision" to="/uav0/ground_truth/fake_vision" />
@@ -116,7 +116,7 @@
         <param name="SAVE_CPU_TIME"  value="$(arg save_cpu)" />
         <param name="GAUSS_X" value="$(arg GAUSS_X)" />
         <param name="GAUSS_Y" value="$(arg GAUSS_Y)" />
-        <param name="GOAL_X" value="3.0" />
+        <param name="GOAL_X" value="0.0" />
         <param name="GOAL_Y" value="3.0" />
 
         <remap unless="$(arg USE_UVDAR)" from="/uav1/fake_vision" to="/uav1/ground_truth/fake_vision" />
